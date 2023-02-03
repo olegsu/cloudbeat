@@ -25,18 +25,19 @@ import (
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.EksType, &EksFactory{
-		AwsConfigProvider: awslib.ConfigProvider{MetadataProvider: awslib.Ec2MetadataProvider{}},
-	})
-}
-
 type EksFactory struct {
 	AwsConfigProvider awslib.ConfigProviderAPI
+}
+
+func New(options ...FactoryOption) *EksFactory {
+	e := &EksFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *EksFactory) Create(log *logp.Logger, c *agentconfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {

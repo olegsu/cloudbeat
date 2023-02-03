@@ -40,10 +40,8 @@ const (
 	// Expects format as the following: --<key><delimiter><value>.
 	// For example: --config=a.json
 	// The regex supports two delimiters "=" and ""
-	CMDArgumentMatcher  = "\\b%s[\\s=]\\/?(\\S+)"
-	ProcessResourceType = "process"
-	ProcessSubType      = "process"
-	userHz              = 100
+	CMDArgumentMatcher = "\\b%s[\\s=]\\/?(\\S+)"
+	userHz             = 100
 )
 
 type EvalProcResource struct {
@@ -271,8 +269,8 @@ func (res ProcResource) GetData() interface{} {
 func (res ProcResource) GetMetadata() (fetching.ResourceMetadata, error) {
 	return fetching.ResourceMetadata{
 		ID:        res.EvalResource.PID + res.EvalResource.Stat.StartTime,
-		Type:      ProcessResourceType,
-		SubType:   ProcessSubType,
+		Type:      fetching.ProcessResourceType,
+		SubType:   fetching.ProcessSubType,
 		Name:      res.EvalResource.Stat.Name,
 		ECSFormat: "process",
 	}, nil

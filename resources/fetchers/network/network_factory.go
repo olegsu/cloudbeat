@@ -23,8 +23,6 @@ import (
 
 	"github.com/elastic/beats/v7/x-pack/libbeat/common/aws"
 
-	awssdk "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/ec2"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
@@ -33,16 +31,17 @@ import (
 	"github.com/elastic/cloudbeat/resources/fetching"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.EC2NetworkingType, &EC2NetworkFactory{
-		CrossRegionFactory: &awslib.MultiRegionClientFactory[ec2.Client]{},
-		IdentityProvider:   awslib.GetIdentityClient,
-	})
-}
-
 type EC2NetworkFactory struct {
 	CrossRegionFactory awslib.CrossRegionFactory[ec2.Client]
-	IdentityProvider   func(cfg awssdk.Config) awslib.IdentityProviderGetter
+	IdentityProvider   awslib.IdentityProviderGetter
+}
+
+func New(options ...FactoryOption) *EC2NetworkFactory {
+	e := &EC2NetworkFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *EC2NetworkFactory) Create(log *logp.Logger, c *agentconfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
@@ -64,8 +63,7 @@ func (f *EC2NetworkFactory) CreateFrom(log *logp.Logger, cfg ACLFetcherConfig, c
 		return nil, fmt.Errorf("failed to initialize AWS credentials: %w", err)
 	}
 
-	identityProvider := f.IdentityProvider(awsConfig)
-	identity, err := identityProvider.GetIdentity(ctx)
+	identity, err := f.IdentityProvider.GetIdentity(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get cloud indentity: %w", err)
 	}

@@ -23,14 +23,33 @@ import (
 	"time"
 
 	"github.com/elastic/cloudbeat/resources/providers"
+	"github.com/elastic/cloudbeat/resources/providers/awslib"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudtrail"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch/logs"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/ec2"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/securityhub"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/sns"
 
 	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/dataprovider"
 	"github.com/elastic/cloudbeat/evaluator"
 	"github.com/elastic/cloudbeat/pipeline"
 	_ "github.com/elastic/cloudbeat/processor" // Add cloudbeat default processors.
+	"github.com/elastic/cloudbeat/resources/fetchers/ecr"
+	"github.com/elastic/cloudbeat/resources/fetchers/eks"
+	"github.com/elastic/cloudbeat/resources/fetchers/elb"
+	"github.com/elastic/cloudbeat/resources/fetchers/filesystem"
+	"github.com/elastic/cloudbeat/resources/fetchers/iam"
+	"github.com/elastic/cloudbeat/resources/fetchers/kube"
+	"github.com/elastic/cloudbeat/resources/fetchers/logging"
+	"github.com/elastic/cloudbeat/resources/fetchers/monitoring"
+	"github.com/elastic/cloudbeat/resources/fetchers/network"
+	"github.com/elastic/cloudbeat/resources/fetchers/process"
+	"github.com/elastic/cloudbeat/resources/fetchers/s3"
 	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
+	s3_provider "github.com/elastic/cloudbeat/resources/providers/awslib/s3"
 	"github.com/elastic/cloudbeat/transformer"
 	"github.com/elastic/cloudbeat/uniqueness"
 
@@ -183,12 +202,58 @@ func (bt *posture) Run(b *beat.Beat) error {
 func initRegistry(log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo, le uniqueness.Manager) (fetchersManager.FetchersRegistry, error) {
 	registry := fetchersManager.NewFetcherRegistry(log)
 
-	parsedList, err := fetchersManager.Factories.ParseConfigFetchers(log, cfg, ch)
+	configProvider := awslib.ConfigProvider{}
+	identityProvider := &awslib.IdentityProvider{}
+	kubeProvider := providers.KubernetesProvider{}
+
+	s3Cross := &awslib.MultiRegionClientFactory[s3_provider.Client]{}
+
+	manager := fetchersManager.New()
+	// register all fetchers
+	manager.RegisterFactory(fetching.EcrType, ecr.New(
+		ecr.WithAWSConfigProvider(configProvider),
+		ecr.WithIdentityProvider(identityProvider),
+		ecr.WithKubernetesProvider(kubeProvider),
+	))
+	manager.RegisterFactory(fetching.EksType, eks.New(
+		eks.WithAWSConfigProvider(configProvider),
+	))
+	manager.RegisterFactory(fetching.ElbType, elb.New(
+		elb.WithAWSConfigProvider(configProvider),
+		elb.WithIdentityProvider(identityProvider),
+		elb.WithKubernetesProvider(kubeProvider),
+	))
+	manager.RegisterFactory(fetching.FileSystemType, filesystem.New())
+	manager.RegisterFactory(fetching.IAMType, iam.New(
+		iam.WithIdentityProvider(identityProvider),
+	))
+	manager.RegisterFactory(fetching.KubeAPIType, kube.New())
+	manager.RegisterFactory(fetching.TrailType, logging.New(
+		logging.WithS3CrossRegionFactory(s3Cross),
+	))
+	manager.RegisterFactory(fetching.MonitoringType, monitoring.New(
+		monitoring.WithAwsConfigProvider(configProvider),
+		monitoring.WithCrossRegionTrailFactory(&awslib.MultiRegionClientFactory[cloudtrail.Client]{}),
+		monitoring.WithCrossRegionCloudwatchFactory(&awslib.MultiRegionClientFactory[cloudwatch.Client]{}),
+		monitoring.WithCrossRegionCloudwatchlogsFactory(&awslib.MultiRegionClientFactory[logs.Client]{}),
+		monitoring.WithCrossRegionSNSFactory(&awslib.MultiRegionClientFactory[sns.Client]{}),
+		monitoring.WithCrossRegionSecurityhubFacotry(&awslib.MultiRegionClientFactory[securityhub.Service]{}),
+	))
+	manager.RegisterFactory(fetching.EC2NetworkingType, network.New(
+		network.WithCrossRegionEC2Facotry(&awslib.MultiRegionClientFactory[ec2.ElasticCompute]{}),
+		network.WithIdentityProvider(identityProvider),
+	))
+	manager.RegisterFactory(fetching.ProcessType, process.New())
+	manager.RegisterFactory(fetching.S3Type, s3.New(
+		s3.WithCrossRegionS3Factory(s3Cross),
+	))
+
+	list, err := manager.ParseConfigFetchers(log, cfg, ch)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := registry.RegisterFetchers(parsedList, le); err != nil {
+	if err := registry.RegisterFetchers(list, le); err != nil {
 		return nil, err
 	}
 

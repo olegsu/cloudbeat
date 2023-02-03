@@ -144,7 +144,7 @@ func (s *FactoriesTestSuite) TestRegisterFetchersWithAwsCredentials() {
 	}
 
 	for _, test := range tests {
-		s.F = newFactories()
+		s.F = New()
 		s.F.RegisterFactory(test.fetcherName, &awsTestFactory{})
 		reg := NewFetcherRegistry(s.log)
 		conf := createEksAgentConfig(test.awsConfig, test.fetcherName)

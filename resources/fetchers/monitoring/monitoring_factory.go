@@ -21,9 +21,7 @@ import (
 	"context"
 	"fmt"
 
-	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/elastic/beats/v7/x-pack/libbeat/common/aws"
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/providers/aws_cis/monitoring"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudtrail"
@@ -37,18 +35,6 @@ import (
 	"github.com/elastic/cloudbeat/resources/fetching"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.MonitoringType, &MonitoringFactory{
-		AwsConfigProvider:                awslib.ConfigProvider{MetadataProvider: awslib.Ec2MetadataProvider{}},
-		TrailCrossRegionFactory:          &awslib.MultiRegionClientFactory[cloudtrail.Client]{},
-		CloudwatchCrossRegionFactory:     &awslib.MultiRegionClientFactory[cloudwatch.Client]{},
-		CloudwatchlogsCrossRegionFactory: &awslib.MultiRegionClientFactory[logs.Client]{},
-		SNSCrossRegionFactory:            &awslib.MultiRegionClientFactory[sns.Client]{},
-		SecurityhubRegionFactory:         &awslib.MultiRegionClientFactory[securityhub.Client]{},
-		IdentityProvider:                 awslib.GetIdentityClient,
-	})
-}
-
 type MonitoringFactory struct {
 	AwsConfigProvider                awslib.ConfigProviderAPI
 	TrailCrossRegionFactory          awslib.CrossRegionFactory[cloudtrail.Client]
@@ -56,7 +42,15 @@ type MonitoringFactory struct {
 	CloudwatchlogsCrossRegionFactory awslib.CrossRegionFactory[logs.Client]
 	SNSCrossRegionFactory            awslib.CrossRegionFactory[sns.Client]
 	SecurityhubRegionFactory         awslib.CrossRegionFactory[securityhub.Client]
-	IdentityProvider                 func(cfg awssdk.Config) awslib.IdentityProviderGetter
+	IdentityProvider                 awslib.IdentityProviderGetter
+}
+
+func New(options ...FactoryOption) *MonitoringFactory {
+	e := &MonitoringFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *MonitoringFactory) Create(log *logp.Logger, c *agentconfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
@@ -85,8 +79,7 @@ func (f *MonitoringFactory) CreateFrom(log *logp.Logger, cfg MonitoringFetcherCo
 		Log:            log,
 	}
 
-	identityProvider := f.IdentityProvider(awsConfig)
-	identity, err := identityProvider.GetIdentity(context.Background())
+	identity, err := f.IdentityProvider.GetIdentity(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("could not get cloud indentity: %w", err)
 	}

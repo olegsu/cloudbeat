@@ -30,27 +30,25 @@ import (
 	"github.com/elastic/cloudbeat/resources/providers/awslib/configservice"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/s3"
 
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
 	"github.com/elastic/cloudbeat/resources/fetching"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.TrailType, &LoggingFactory{
-		TrailCrossRegionFactory:  &awslib.MultiRegionClientFactory[cloudtrail.Client]{},
-		S3CrossRegionFactory:     &awslib.MultiRegionClientFactory[s3.Client]{},
-		ConfigCrossRegionFactory: &awslib.MultiRegionClientFactory[configservice.Client]{},
-		IdentityProvider:         awslib.GetIdentityClient,
-	})
-}
-
 type LoggingFactory struct {
 	TrailCrossRegionFactory  awslib.CrossRegionFactory[cloudtrail.Client]
 	S3CrossRegionFactory     awslib.CrossRegionFactory[s3.Client]
 	ConfigCrossRegionFactory awslib.CrossRegionFactory[configservice.Client]
 	IdentityProvider         func(cfg awssdk.Config) awslib.IdentityProviderGetter
+}
+
+func New(options ...FactoryOption) *LoggingFactory {
+	e := &LoggingFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *LoggingFactory) Create(log *logp.Logger, c *agentconfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {

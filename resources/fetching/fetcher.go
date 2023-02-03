@@ -49,6 +49,8 @@ const (
 	ProcessResourceType       = "process"
 	ProcessSubType            = "process"
 	FSResourceType            = "file"
+	ProcessType               = "process"
+	FileSystemType            = "file-system"
 
 	CloudIdentity          = "identity-management"
 	EC2Identity            = "cloud-compute"

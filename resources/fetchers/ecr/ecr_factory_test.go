@@ -102,9 +102,7 @@ default_region: us1-east
 		factory := &EcrFactory{
 			KubernetesProvider: mockedKubernetesClientGetter,
 			AwsConfigProvider:  mockedConfigGetter,
-			IdentityProvider: func(cfg awssdk.Config) awslib.IdentityProviderGetter {
-				return identityProvider
-			},
+			IdentityProvider:   identityProvider,
 		}
 
 		cfg, err := agentconfig.NewConfigFrom(test.config)

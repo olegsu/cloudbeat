@@ -125,9 +125,7 @@ func TestMonitoringFactory_Create(t *testing.T) {
 		CloudwatchlogsCrossRegionFactory: mockCrossRegionCloudwatchlogsFactory,
 		SNSCrossRegionFactory:            mockCrossRegionSNSFactory,
 		SecurityhubRegionFactory:         mockCrossRegionSecurityHubFactory,
-		IdentityProvider: func(cfg awssdk.Config) awslib.IdentityProviderGetter {
-			return identity
-		},
+		IdentityProvider:                 identity,
 	}
 	cfg, err := agentconfig.NewConfigFrom(awsConfig)
 	assert.NoError(t, err)

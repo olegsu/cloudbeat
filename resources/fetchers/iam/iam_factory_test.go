@@ -20,7 +20,6 @@ package iam
 import (
 	"testing"
 
-	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 	"github.com/stretchr/testify/mock"
 
@@ -74,9 +73,7 @@ default_region: us1-east
 		mockedIdentityProvider.EXPECT().GetIdentity(mock.Anything).Return(&identity, nil)
 
 		factory := &IAMFactory{
-			IdentityProvider: func(cfg awssdk.Config) awslib.IdentityProviderGetter {
-				return mockedIdentityProvider
-			},
+			IdentityProvider: mockedIdentityProvider,
 		}
 
 		cfg, err := agentconfig.NewConfigFrom(test.config)

@@ -36,11 +36,10 @@ import (
 )
 
 const (
-	FSResourceType = "file"
-	FileSubType    = "file"
-	DirSubType     = "directory"
-	UserFile       = "/hostfs/etc/passwd"
-	GroupFile      = "/hostfs/etc/group"
+	FileSubType = "file"
+	DirSubType  = "directory"
+	UserFile    = "/hostfs/etc/passwd"
+	GroupFile   = "/hostfs/etc/group"
 )
 
 type EvalFSResource struct {
@@ -185,10 +184,10 @@ func (r FSResource) GetElasticCommonData() any {
 func (r FSResource) GetMetadata() (fetching.ResourceMetadata, error) {
 	return fetching.ResourceMetadata{
 		ID:        r.EvalResource.Path,
-		Type:      FSResourceType,
+		Type:      fetching.FSResourceType,
 		SubType:   r.EvalResource.SubType,
 		Name:      r.EvalResource.Path, // The Path from the container and not from the host
-		ECSFormat: FSResourceType,
+		ECSFormat: fetching.FSResourceType,
 	}, nil
 }
 

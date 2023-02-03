@@ -107,7 +107,7 @@ func (s *FSFetcherTestSuite) TestFileFetcherFetchASingleFile() {
 	s.NotNil(rMetadata.ID)
 	s.Equal(filePaths[0], rMetadata.Name)
 	s.Equal(FileSubType, rMetadata.SubType)
-	s.Equal(FSResourceType, rMetadata.Type)
+	s.Equal(fetching.FSResourceType, rMetadata.Type)
 	s.NotNil(fsResource.GetElasticCommonData())
 }
 
@@ -158,7 +158,7 @@ func (s *FSFetcherTestSuite) TestFileFetcherFetchTwoPatterns() {
 	s.NotNil(rMetadata.ID)
 	s.Equal(paths[0], rMetadata.Name)
 	s.Equal(FileSubType, rMetadata.SubType)
-	s.Equal(FSResourceType, rMetadata.Type)
+	s.Equal(fetching.FSResourceType, rMetadata.Type)
 
 	secFSResource := results[1].Resource
 	secEvalResource := secFSResource.GetData().(EvalFSResource)
@@ -172,7 +172,7 @@ func (s *FSFetcherTestSuite) TestFileFetcherFetchTwoPatterns() {
 	s.NotNil(SecResMetadata.ID)
 	s.Equal(paths[1], SecResMetadata.Name)
 	s.Equal(FileSubType, SecResMetadata.SubType)
-	s.Equal(FSResourceType, SecResMetadata.Type)
+	s.Equal(fetching.FSResourceType, SecResMetadata.Type)
 }
 
 func (s *FSFetcherTestSuite) TestFileFetcherFetchDirectoryOnly() {
@@ -216,7 +216,7 @@ func (s *FSFetcherTestSuite) TestFileFetcherFetchDirectoryOnly() {
 	s.NotNil(rMetadata.ID)
 	s.NotNil(rMetadata.Name)
 	s.Equal(DirSubType, rMetadata.SubType)
-	s.Equal(FSResourceType, rMetadata.Type)
+	s.Equal(fetching.FSResourceType, rMetadata.Type)
 	s.Equal(expectedResult, evalResource.Name)
 	s.Equal("", evalResource.Owner)
 	s.Equal("", evalResource.Group)
@@ -277,7 +277,7 @@ func (s *FSFetcherTestSuite) TestFileFetcherFetchOuterDirectoryOnly() {
 		s.NotNil(rMetadata.ID)
 		s.Equal("root", evalResource.Group)
 		s.Equal("root", evalResource.Owner)
-		s.Equal(FSResourceType, rMetadata.Type)
+		s.Equal(fetching.FSResourceType, rMetadata.Type)
 		s.NoError(err)
 		s.NotNil(fsResource.GetElasticCommonData())
 	}
@@ -337,7 +337,7 @@ func (s *FSFetcherTestSuite) TestFileFetcherFetchDirectoryRecursively() {
 		s.NotNil(rMetadata.Name)
 		s.NotNil(rMetadata.ID)
 		s.Contains(allFilesName, evalResource.Name)
-		s.Equal(FSResourceType, rMetadata.Type)
+		s.Equal(fetching.FSResourceType, rMetadata.Type)
 
 		s.NoError(err)
 		s.Equal("root", evalResource.Owner)

@@ -61,9 +61,7 @@ func TestNetworkFactory_Create(t *testing.T) {
 
 	f := &EC2NetworkFactory{
 		CrossRegionFactory: mockCrossRegion,
-		IdentityProvider: func(cfg awssdk.Config) awslib.IdentityProviderGetter {
-			return identity
-		},
+		IdentityProvider:   identity,
 	}
 	cfg, err := agentconfig.NewConfigFrom(awsConfig)
 	assert.NoError(t, err)

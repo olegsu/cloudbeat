@@ -18,7 +18,6 @@
 package filesystem
 
 import (
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/utils/user"
 	"github.com/elastic/elastic-agent-libs/config"
@@ -29,11 +28,15 @@ const (
 	FileSystemType = "file-system"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(FileSystemType, &FileSystemFactory{})
-}
-
 type FileSystemFactory struct{}
+
+func New(options ...FactoryOption) *FileSystemFactory {
+	e := &FileSystemFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
 
 func (f *FileSystemFactory) Create(log *logp.Logger, c *config.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
 	log.Debug("Starting FileSystemFactory.Create")

@@ -26,8 +26,6 @@ import (
 	"github.com/elastic/elastic-agent-libs/logp"
 )
 
-var Factories = newFactories()
-
 type factories struct {
 	m map[string]fetching.Factory
 }
@@ -37,8 +35,8 @@ type ParsedFetcher struct {
 	f    fetching.Fetcher
 }
 
-func newFactories() factories {
-	return factories{m: make(map[string]fetching.Factory)}
+func New() factories {
+	return factories{m: map[string]fetching.Factory{}}
 }
 
 func (fa *factories) RegisterFactory(name string, f fetching.Factory) {

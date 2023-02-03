@@ -98,10 +98,8 @@ default_region: us2-east
 			)
 		factory := &ElbFactory{
 			KubernetesProvider: mockedKubernetesClientGetter,
-			IdentityProvider: func(cfg awssdk.Config) awslib.IdentityProviderGetter {
-				return identityProvider
-			},
-			AwsConfigProvider: mockedConfigGetter,
+			IdentityProvider:   identityProvider,
+			AwsConfigProvider:  mockedConfigGetter,
 		}
 
 		cfg, err := agentconfig.NewConfigFrom(test.config)

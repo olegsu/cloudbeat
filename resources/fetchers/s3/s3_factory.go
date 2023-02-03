@@ -26,18 +26,19 @@ import (
 	agentConfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.S3Type, &S3Factory{
-		CrossRegionFactory: &awslib.MultiRegionClientFactory[s3.Client]{},
-	})
-}
-
 type S3Factory struct {
 	CrossRegionFactory awslib.CrossRegionFactory[s3.Client]
+}
+
+func New(options ...FactoryOption) *S3Factory {
+	e := &S3Factory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *S3Factory) Create(log *logp.Logger, c *agentConfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {

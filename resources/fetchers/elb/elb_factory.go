@@ -23,7 +23,6 @@ import (
 	"regexp"
 	"time"
 
-	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/elastic/cloudbeat/resources/providers"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 
@@ -31,22 +30,21 @@ import (
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
 )
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.ElbType, &ElbFactory{
-		KubernetesProvider: providers.KubernetesProvider{},
-		IdentityProvider:   awslib.GetIdentityClient,
-		AwsConfigProvider:  awslib.ConfigProvider{MetadataProvider: awslib.Ec2MetadataProvider{}},
-	})
-}
-
 type ElbFactory struct {
 	KubernetesProvider providers.KubernetesClientGetter
-	IdentityProvider   func(cfg awssdk.Config) awslib.IdentityProviderGetter
+	IdentityProvider   awslib.IdentityProviderGetter
 	AwsConfigProvider  awslib.ConfigProviderAPI
+}
+
+func New(options ...FactoryOption) *ElbFactory {
+	e := &ElbFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *ElbFactory) Create(log *logp.Logger, c *agentconfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
@@ -75,8 +73,7 @@ func (f *ElbFactory) CreateFrom(log *logp.Logger, cfg ElbFetcherConfig, ch chan 
 	}
 
 	balancerDescriber := awslib.NewElbProvider(*awsConfig)
-	identityProvider := f.IdentityProvider(*awsConfig)
-	identity, err := identityProvider.GetIdentity(ctx)
+	identity, err := f.IdentityProvider.GetIdentity(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("could not get cloud indentity: %w", err)
 	}

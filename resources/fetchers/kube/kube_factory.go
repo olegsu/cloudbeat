@@ -20,20 +20,26 @@ package kube
 import (
 	"sync"
 
-	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
+	"github.com/elastic/cloudbeat/resources/providers"
 	"github.com/elastic/elastic-agent-autodiscover/kubernetes"
 	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 	k8s "k8s.io/client-go/kubernetes"
 )
 
-type KubeFactory struct{}
+type KubeFactory struct {
+	Provider *providers.KubernetesProvider
+}
 
 type KubeClientProvider func(kubeconfig string, opt kubernetes.KubeClientOptions) (k8s.Interface, error)
 
-func init() {
-	fetchersManager.Factories.RegisterFactory(fetching.KubeAPIType, &KubeFactory{})
+func New(options ...FactoryOption) *KubeFactory {
+	e := &KubeFactory{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *KubeFactory) Create(log *logp.Logger, c *config.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
@@ -44,6 +50,7 @@ func (f *KubeFactory) Create(log *logp.Logger, c *config.C, ch chan fetching.Res
 	if err != nil {
 		return nil, err
 	}
+	// TODO: kube provider should come from options
 	return f.CreateFrom(log, cfg, ch, kubernetes.GetKubernetesClient)
 }
 
