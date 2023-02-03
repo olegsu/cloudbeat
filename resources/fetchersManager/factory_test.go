@@ -90,7 +90,7 @@ func TestFactoriesTestSuite(t *testing.T) {
 }
 
 func (s *FactoriesTestSuite) SetupTest() {
-	s.F = newFactories()
+	s.F = New()
 	s.resourceCh = make(chan fetching.ResourceInfo, 50)
 }
 
@@ -166,7 +166,7 @@ func (s *FactoriesTestSuite) TestRegisterFetchers() {
 	}
 
 	for _, test := range tests {
-		s.F = newFactories()
+		s.F = New()
 		s.F.RegisterFactory(test.key, &numberFetcherFactory{})
 		numCfg := numberConfig(test.value)
 		err := numCfg.SetString("name", -1, test.key)

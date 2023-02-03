@@ -20,19 +20,20 @@ package transformer
 import (
 	"context"
 	"encoding/json"
-	"github.com/elastic/beats/v7/libbeat/beat"
-	"github.com/elastic/cloudbeat/dataprovider"
-	"github.com/elastic/cloudbeat/version"
-	"github.com/stretchr/testify/mock"
 	"io"
 	"os"
 	"regexp"
 	"testing"
 
+	"github.com/elastic/beats/v7/libbeat/beat"
+	"github.com/elastic/cloudbeat/dataprovider"
+	"github.com/elastic/cloudbeat/version"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/elastic/cloudbeat/evaluator"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/cloudbeat/resources/fetchers"
+	"github.com/elastic/cloudbeat/resources/fetchers/filesystem"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/stretchr/testify/suite"
 )
@@ -54,8 +55,8 @@ var versionInfo = version.CloudbeatVersionInfo{
 	Version: version.Version{Version: "test_version"},
 }
 
-var fetcherResult = fetchers.FSResource{
-	EvalResource: fetchers.EvalFSResource{
+var fetcherResult = filesystem.FSResource{
+	EvalResource: filesystem.EvalFSResource{
 		Name:    "scheduler.conf",
 		Mode:    "700",
 		Gid:     "20",
@@ -66,7 +67,7 @@ var fetcherResult = fetchers.FSResource{
 		Inode:   "8901",
 		SubType: "file",
 	},
-	ElasticCommon: fetchers.FileCommonData{
+	ElasticCommon: filesystem.FileCommonData{
 		Name: "scheduler.conf",
 	},
 }

@@ -46,6 +46,9 @@ const (
 	VpcType                   = "aws-vpc"
 	RdsType                   = "aws-rds"
 	ConfigServiceResourceType = "aws-config"
+	ProcessResourceType       = "process"
+	ProcessSubType            = "process"
+	FSResourceType            = "file"
 
 	CloudIdentity          = "identity-management"
 	EC2Identity            = "cloud-compute"

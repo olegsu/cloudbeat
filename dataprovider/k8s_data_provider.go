@@ -23,7 +23,6 @@ import (
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/cloudbeat/config"
-	"github.com/elastic/cloudbeat/resources/fetchers"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/providers"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
@@ -153,7 +152,7 @@ func (k k8sDataProvider) fetchKubernetesVersion() version.Version {
 
 func (c commonK8sData) GetResourceId(metadata fetching.ResourceMetadata) string {
 	switch metadata.Type {
-	case fetchers.ProcessResourceType, fetchers.FSResourceType:
+	case fetching.ProcessResourceType, fetching.FSResourceType:
 		return uuid.NewV5(uuidNamespace, c.clusterId+c.nodeId+metadata.ID).String()
 	case fetching.CloudContainerMgmt, fetching.CloudIdentity, fetching.CloudLoadBalancer, fetching.CloudContainerRegistry:
 		return uuid.NewV5(uuidNamespace, c.clusterId+metadata.ID).String()
