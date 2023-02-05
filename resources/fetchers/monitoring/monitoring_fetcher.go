@@ -51,6 +51,16 @@ type SecurityHubResource struct {
 	securityhub.SecurityHub
 }
 
+func NewFetcher(options ...Option) *MonitoringFetcher {
+	e := &MonitoringFetcher{
+		securityhubs: map[string]securityhub.Service{},
+	}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 func (m MonitoringFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	m.log.Debug("Starting MonitoringFetcher.Fetch")
 	out, err := m.provider.AggregateResources(ctx)

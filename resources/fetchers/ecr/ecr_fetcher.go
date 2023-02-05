@@ -35,11 +35,8 @@ import (
 )
 
 const (
-	// PrivateRepoRegexTemplate should identify images with an ecr regex template
-	// <account-id>.dkr.ecr.<region>.amazonaws.com/<repository-name>
-	PrivateRepoRegexTemplate = "^%s\\.dkr\\.ecr\\.([-\\w]+)\\.amazonaws\\.com\\/([-\\w\\.\\/]+)[:,@]?"
-	EcrRegionRegexGroup      = 1
-	EcrImageRegexGroup       = 2
+	EcrRegionRegexGroup = 1
+	EcrImageRegexGroup  = 2
 )
 
 type EcrFetcher struct {
@@ -63,6 +60,14 @@ type EcrFetcherConfig struct {
 
 type EcrResource struct {
 	awslib.EcrRepository
+}
+
+func NewFetcher(options ...Option) *EcrFetcher {
+	e := &EcrFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *EcrFetcher) Stop() {

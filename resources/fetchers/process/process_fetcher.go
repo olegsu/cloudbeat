@@ -103,8 +103,18 @@ type ProcResource struct {
 type ProcessesFetcher struct {
 	log        *logp.Logger
 	cfg        ProcessFetcherConfig
+	fsProvider func(dir string) fs.FS
 	Fs         fs.FS
 	resourceCh chan fetching.ResourceInfo
+}
+
+func NewFetcher(options ...Option) *ProcessesFetcher {
+	e := &ProcessesFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	e.Fs = e.fsProvider(e.cfg.Directory)
+	return e
 }
 
 type ProcessInputConfiguration struct {

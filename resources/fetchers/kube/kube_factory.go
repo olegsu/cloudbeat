@@ -56,12 +56,12 @@ func (f *KubeFactory) Create(log *logp.Logger, c *config.C, ch chan fetching.Res
 
 func (f *KubeFactory) CreateFrom(log *logp.Logger, cfg KubeApiFetcherConfig, ch chan fetching.ResourceInfo, provider KubeClientProvider) (fetching.Fetcher, error) {
 	fe := &KubeFetcher{
-		log:            log,
-		cfg:            cfg,
-		clientProvider: provider,
-		watcherLock:    &sync.Once{},
-		watchers:       make([]kubernetes.Watcher, 0),
-		resourceCh:     ch,
+		log: log,
+		// cfg:            cfg,
+		// clientProvider: provider,
+		watcherLock: &sync.Once{},
+		watchers:    make([]kubernetes.Watcher, 0),
+		resourceCh:  ch,
 	}
 
 	log.Infof("Kube Fetcher created with the following config: Name: %s, Interval: %s, "+

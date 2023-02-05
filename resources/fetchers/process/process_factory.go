@@ -25,10 +25,6 @@ import (
 	"github.com/elastic/elastic-agent-libs/logp"
 )
 
-const (
-	ProcessType = "process"
-)
-
 type ProcessFactory struct{}
 
 func New(options ...FactoryOption) *ProcessFactory {

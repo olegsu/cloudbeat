@@ -45,6 +45,14 @@ type IAMResource struct {
 	identity *awslib.Identity
 }
 
+func NewFetcher(options ...Option) *IAMFetcher {
+	e := &IAMFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 // Fetch collects IAM resources, such as password-policy and IAM users.
 // The resources are enriched by the provider and being send to evaluation.
 func (f IAMFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {

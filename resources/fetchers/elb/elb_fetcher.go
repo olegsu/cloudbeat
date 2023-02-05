@@ -55,6 +55,16 @@ type ElbResource struct {
 	identity *awslib.Identity
 }
 
+func NewFetcher(options ...Option) *ElbFetcher {
+	e := &ElbFetcher{
+		lbRegexMatchers: []*regexp.Regexp{},
+	}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 func (f *ElbFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	f.log.Debug("Starting ElbFetcher.Fetch")
 

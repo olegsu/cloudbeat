@@ -44,6 +44,14 @@ type EksResource struct {
 	awslib.EksClusterOutput
 }
 
+func NewFetcher(options ...Option) *EksFetcher {
+	e := &EksFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 func (f EksFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	f.log.Debug("Starting EksFetcher.Fetch")
 

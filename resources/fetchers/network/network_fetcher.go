@@ -43,6 +43,16 @@ type NetworkResource struct {
 	identity *awslib.Identity
 }
 
+func NewFetcher(options ...Option) *NetworkFetcher {
+	e := &NetworkFetcher{
+		ec2Clients: map[string]ec2.ElasticCompute{},
+	}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 // Fetch collects network resource such as network acl and security groups
 func (f NetworkFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	f.log.Debug("Starting NetworkFetcher.Fetch")

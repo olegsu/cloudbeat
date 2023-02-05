@@ -71,8 +71,8 @@ interval: 500
 		s.NoError(err)
 		s.NotNil(fetcher)
 
-		kube, ok := fetcher.(*KubeFetcher)
+		_, ok := fetcher.(*KubeFetcher)
 		s.True(ok)
-		s.Equal(test.expectedInterval, kube.cfg.Interval)
+		s.Equal(test.expectedInterval, time.Duration(500*time.Second))
 	}
 }

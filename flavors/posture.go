@@ -20,16 +20,26 @@ package flavors
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
 	"time"
 
-	"github.com/elastic/cloudbeat/resources/providers"
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/elastic/cloudbeat/resources/fetchers"
+	awscis_logging "github.com/elastic/cloudbeat/resources/providers/aws_cis/logging"
+	awscis_monitoring "github.com/elastic/cloudbeat/resources/providers/aws_cis/monitoring"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudtrail"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch/logs"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/ec2"
+	awslib_ec2 "github.com/elastic/cloudbeat/resources/providers/awslib/ec2"
+	awslib_iam "github.com/elastic/cloudbeat/resources/providers/awslib/iam"
+	awslib_s3 "github.com/elastic/cloudbeat/resources/providers/awslib/s3"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/securityhub"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/sns"
+	"github.com/elastic/cloudbeat/resources/utils/user"
+	"github.com/elastic/elastic-agent-autodiscover/kubernetes"
 
 	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/dataprovider"
@@ -49,12 +59,12 @@ import (
 	"github.com/elastic/cloudbeat/resources/fetchers/s3"
 	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
-	s3_provider "github.com/elastic/cloudbeat/resources/providers/awslib/s3"
 	"github.com/elastic/cloudbeat/transformer"
 	"github.com/elastic/cloudbeat/uniqueness"
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/processors"
+	"github.com/elastic/cloudbeat/resources/providers"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 )
@@ -202,53 +212,7 @@ func (bt *posture) Run(b *beat.Beat) error {
 func initRegistry(log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo, le uniqueness.Manager) (fetchersManager.FetchersRegistry, error) {
 	registry := fetchersManager.NewFetcherRegistry(log)
 
-	configProvider := awslib.ConfigProvider{}
-	identityProvider := &awslib.IdentityProvider{}
-	kubeProvider := providers.KubernetesProvider{}
-
-	s3Cross := &awslib.MultiRegionClientFactory[s3_provider.Client]{}
-
-	manager := fetchersManager.New()
-	// register all fetchers
-	manager.RegisterFactory(fetching.EcrType, ecr.New(
-		ecr.WithAWSConfigProvider(configProvider),
-		ecr.WithIdentityProvider(identityProvider),
-		ecr.WithKubernetesProvider(kubeProvider),
-	))
-	manager.RegisterFactory(fetching.EksType, eks.New(
-		eks.WithAWSConfigProvider(configProvider),
-	))
-	manager.RegisterFactory(fetching.ElbType, elb.New(
-		elb.WithAWSConfigProvider(configProvider),
-		elb.WithIdentityProvider(identityProvider),
-		elb.WithKubernetesProvider(kubeProvider),
-	))
-	manager.RegisterFactory(fetching.FileSystemType, filesystem.New())
-	manager.RegisterFactory(fetching.IAMType, iam.New(
-		iam.WithIdentityProvider(identityProvider),
-	))
-	manager.RegisterFactory(fetching.KubeAPIType, kube.New())
-	manager.RegisterFactory(fetching.TrailType, logging.New(
-		logging.WithS3CrossRegionFactory(s3Cross),
-	))
-	manager.RegisterFactory(fetching.MonitoringType, monitoring.New(
-		monitoring.WithAwsConfigProvider(configProvider),
-		monitoring.WithCrossRegionTrailFactory(&awslib.MultiRegionClientFactory[cloudtrail.Client]{}),
-		monitoring.WithCrossRegionCloudwatchFactory(&awslib.MultiRegionClientFactory[cloudwatch.Client]{}),
-		monitoring.WithCrossRegionCloudwatchlogsFactory(&awslib.MultiRegionClientFactory[logs.Client]{}),
-		monitoring.WithCrossRegionSNSFactory(&awslib.MultiRegionClientFactory[sns.Client]{}),
-		monitoring.WithCrossRegionSecurityhubFacotry(&awslib.MultiRegionClientFactory[securityhub.Service]{}),
-	))
-	manager.RegisterFactory(fetching.EC2NetworkingType, network.New(
-		network.WithCrossRegionEC2Facotry(&awslib.MultiRegionClientFactory[ec2.ElasticCompute]{}),
-		network.WithIdentityProvider(identityProvider),
-	))
-	manager.RegisterFactory(fetching.ProcessType, process.New())
-	manager.RegisterFactory(fetching.S3Type, s3.New(
-		s3.WithCrossRegionS3Factory(s3Cross),
-	))
-
-	list, err := manager.ParseConfigFetchers(log, cfg, ch)
+	list, err := fetchersManager.ParseConfigFetchers(log, cfg, ch, initFetchers(log, cfg, ch))
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +224,177 @@ func initRegistry(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 	return registry, nil
 }
 
-// Stop stops posture.
+func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo) map[string]fetchers.Fetcher {
+	k8sProvider := providers.KubernetesProvider{}
+	// TODO: load kubeconfig
+	k8sClient, err := k8sProvider.GetClient(log, "", kubernetes.KubeClientOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	awsConfigProvider := awslib.ConfigProvider{MetadataProvider: awslib.Ec2MetadataProvider{}}
+	awsConfig, err := awsConfigProvider.InitializeAWSConfig(context.Background(), cfg.CloudConfig.AwsCred)
+	if awsConfig.Region == "" {
+		// TODO: do we really need this?
+		awsConfig.Region = awslib.DefaultRegion
+	}
+	if err != nil {
+		panic(err)
+	}
+
+	identityProvider := awslib.GetIdentityClient(*awsConfig)
+	identity, err := identityProvider.GetIdentity(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	crossRegionCloudtrailProvider := awslib.MultiRegionClientFactory[cloudtrail.Client]{}
+	crossRegionS3Provider := awslib.MultiRegionClientFactory[awslib_s3.Client]{}
+	crossRegionSecurityhubProvider := awslib.MultiRegionClientFactory[securityhub.Service]{}
+	crossRegionCloudwatchProvider := awslib.MultiRegionClientFactory[cloudwatch.Client]{}
+	crossRegionCloudwatchlogsProvider := awslib.MultiRegionClientFactory[logs.Client]{}
+	crossRegionSNSProvider := awslib.MultiRegionClientFactory[sns.Client]{}
+	crossRegionEC2Provider := awslib.MultiRegionClientFactory[awslib_ec2.ElasticCompute]{}
+
+	list, err := config.GetFetcherNames(cfg) // get all the fetchers from the config file to register only them
+	if err != nil {
+		panic(err)
+	}
+
+	// TODO: not all the fetchers here
+	// go over the list again
+	// also in case there is a fetcher in yml that is not recognized should we exit?
+	reg := map[string]fetchers.Fetcher{}
+	if _, ok := list[fetching.EcrType]; ok {
+		reg[fetching.EcrType] = ecr.NewFetcher(
+			ecr.WithLogger(log),
+			ecr.WithFetcherConfig(cfg),
+			ecr.WithKubeClient(k8sClient),
+			ecr.WithAWSConfig(*awssdk.NewConfig()),
+			ecr.WithPodDescriber(*identity.Account, awslib.NewEcrProvider()),
+			ecr.WithResourceChannel(ch),
+		)
+	}
+
+	if _, ok := list[fetching.EksType]; ok {
+		reg[fetching.EksType] = eks.NewFetcher(
+			eks.WithLogger(log),
+			eks.WithResourceChannel(ch),
+			eks.WithFetcherConfig(cfg),
+			eks.WithEKSProvider(awslib.NewEksProvider(*awsConfig)),
+		)
+	}
+
+	if _, ok := list[fetching.ElbType]; ok {
+		reg[fetching.ElbType] = elb.NewFetcher(
+			elb.WithLogger(log),
+			elb.WithResourceChannel(ch),
+			elb.WithCloudIdentity(identity),
+			elb.WithFetcherConfig(cfg),
+			elb.WithRegexMatcher(awsConfig.Region),
+			elb.WithKubeClient(k8sClient),
+		)
+	}
+
+	if _, ok := list[fetching.FileSystemType]; ok {
+		reg[fetching.FileSystemType] = filesystem.NewFetcher(
+			filesystem.WithLogger(log),
+			filesystem.WithResourceChannel(ch),
+			filesystem.WithFetcherConfig(cfg),
+			filesystem.WithUserProvider(user.NewOSUserUtil()),
+		)
+	}
+
+	if _, ok := list[fetching.IAMType]; ok {
+		reg[fetching.IAMType] = iam.NewFetcher(
+			iam.WithLogger(log),
+			iam.WithResourceChannel(ch),
+			iam.WithFetcherConfig(cfg),
+			iam.WithCloudIdentity(identity),
+			iam.WithIAMProvider(awslib_iam.NewIAMProvider(log, *awsConfig)),
+		)
+	}
+
+	if _, ok := list[fetching.KubeAPIType]; ok {
+		reg[fetching.KubeAPIType] = kube.NewFetcher(
+			kube.WithLogger(log),
+			kube.WithResourceChannel(ch),
+			kube.WithWatchers(kube.InitWatchers(log, k8sClient)),
+			kube.WtihClientProvider(k8sClient),
+		)
+	}
+
+	if _, ok := list[fetching.TrailType]; ok {
+		reg[fetching.TrailType] = logging.NewFetcher(
+			logging.WithLogger(log),
+			logging.WithResourceChannel(ch),
+			logging.WithLoggingProvider(
+				awscis_logging.NewProvider(log, *awsConfig, &crossRegionCloudtrailProvider, &crossRegionS3Provider),
+			),
+		)
+	}
+
+	if _, ok := list[fetching.MonitoringType]; ok {
+		reg[fetching.MonitoringType] = monitoring.NewFetcher(
+			monitoring.WithLogger(log),
+			monitoring.WithResourceChannel(ch),
+			monitoring.WithFetcherConfig(cfg),
+			monitoring.WithCloudIdentity(identity),
+			monitoring.WithSecurityhub(
+				crossRegionSecurityhubProvider.
+					NewMultiRegionClients(ec2.NewFromConfig(*awsConfig), *awsConfig, func(cfg awssdk.Config) securityhub.Service {
+						return securityhub.NewProvider(cfg, log)
+					}, log).
+					GetMultiRegionsClientMap(),
+			),
+			monitoring.WithMonitoringProvider(&awscis_monitoring.Provider{
+				Cloudtrail:     cloudtrail.NewProvider(*awsConfig, log, &crossRegionCloudtrailProvider), // TODO: make the same order of params as in cloudwatch
+				Cloudwatch:     cloudwatch.NewProvider(log, *awsConfig, &crossRegionCloudwatchProvider),
+				Cloudwatchlogs: logs.NewCloudwatchLogsProvider(log, *awsConfig, &crossRegionCloudwatchlogsProvider),
+				Sns:            sns.NewSNSProvider(log, *awsConfig, &crossRegionSNSProvider),
+				Log:            log,
+			}),
+		)
+	}
+
+	if _, ok := list[fetching.EC2NetworkingType]; ok {
+		reg[fetching.EC2NetworkingType] = network.NewFetcher(
+			network.WithLogger(log),
+			network.WithResourceChannel(ch),
+			network.WithFetcherConfig(cfg),
+			network.WithCloudIdentity(identity),
+			network.WithEC2Clients(
+				crossRegionEC2Provider.
+					NewMultiRegionClients(ec2.NewFromConfig(*awsConfig), *awsConfig, func(cfg awssdk.Config) awslib_ec2.ElasticCompute {
+						return awslib_ec2.NewEC2Provider(log, *identity.Account, *awsConfig)
+					}, log).
+					GetMultiRegionsClientMap(),
+			),
+		)
+	}
+
+	if _, ok := list[fetching.ProcessType]; ok {
+		reg[fetching.ProcessType] = process.NewFetcher(
+			process.WithLogger(log),
+			process.WithResourceChannel(ch),
+			process.WithFetcherConfig(cfg),
+			process.WithFSProvider(func(dir string) fs.FS { return os.DirFS(dir) }),
+		)
+	}
+
+	if _, ok := list[fetching.S3Type]; ok {
+		reg[fetching.S3Type] = s3.NewFetcher(
+			s3.WithLogger(log),
+			s3.WithResourceChannel(ch),
+			s3.WithFetcherConfig(cfg),
+			s3.WithS3Client(awslib_s3.NewProvider(*awsConfig, log, &crossRegionS3Provider)),
+		)
+	}
+
+	return reg
+}
+
+// Stop stops cloudbeat.
 func (bt *posture) Stop() {
 	if bt.dataStop != nil {
 		bt.dataStop(bt.ctx, shutdownGracePeriod)

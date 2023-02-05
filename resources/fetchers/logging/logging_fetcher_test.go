@@ -19,9 +19,10 @@ package logging
 
 import (
 	"context"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/configservice"
 	"testing"
 	"time"
+
+	"github.com/elastic/cloudbeat/resources/providers/awslib/configservice"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
@@ -117,7 +118,6 @@ func TestLoggingFetcher_Fetch(t *testing.T) {
 				log:                   logp.NewLogger(tt.name),
 				loggingProvider:       tt.loggingProvider(),
 				configserviceProvider: tt.configServiceProvider(),
-				cfg:                   fetching.AwsBaseFetcherConfig{},
 				resourceCh:            ch,
 			}
 

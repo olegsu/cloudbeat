@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/elastic/cloudbeat/config"
+	"github.com/elastic/cloudbeat/resources/fetchers"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
@@ -48,21 +49,12 @@ func (fa *factories) RegisterFactory(name string, f fetching.Factory) {
 	fa.m[name] = f
 }
 
-func (fa *factories) CreateFetcher(log *logp.Logger, name string, c *agentconfig.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
-	factory, ok := fa.m[name]
-	if !ok {
-		return nil, fmt.Errorf("fetcher %s could not be found", name)
-	}
-
-	return factory.Create(log, c, ch)
-}
-
-func (fa *factories) ParseConfigFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo) ([]*ParsedFetcher, error) {
+func ParseConfigFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo, fetchers map[string]fetchers.Fetcher) ([]*ParsedFetcher, error) {
 	var arr []*ParsedFetcher
 
 	for _, fcfg := range cfg.Fetchers {
 		addCredentialsToFetcherConfiguration(log, cfg, fcfg)
-		p, err := fa.parseConfigFetcher(log, fcfg, ch)
+		p, err := parseConfigFetcher(log, fcfg, ch, fetchers)
 		if err != nil {
 			return nil, err
 		}
@@ -73,16 +65,16 @@ func (fa *factories) ParseConfigFetchers(log *logp.Logger, cfg *config.Config, c
 	return arr, nil
 }
 
-func (fa *factories) parseConfigFetcher(log *logp.Logger, fcfg *agentconfig.C, ch chan fetching.ResourceInfo) (*ParsedFetcher, error) {
+func parseConfigFetcher(log *logp.Logger, fcfg *agentconfig.C, ch chan fetching.ResourceInfo, fetchers map[string]fetchers.Fetcher) (*ParsedFetcher, error) {
 	gen := fetching.BaseFetcherConfig{}
 	err := fcfg.Unpack(&gen)
 	if err != nil {
 		return nil, err
 	}
 
-	f, err := fa.CreateFetcher(log, gen.Name, fcfg, ch)
-	if err != nil {
-		return nil, err
+	f, ok := fetchers[gen.Name]
+	if !ok {
+		return nil, fmt.Errorf("fetcher %s could not be found", gen.Name)
 	}
 
 	return &ParsedFetcher{gen.Name, f}, nil

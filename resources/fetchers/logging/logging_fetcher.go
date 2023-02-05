@@ -32,7 +32,6 @@ type LoggingFetcher struct {
 	log                   *logp.Logger
 	loggingProvider       logging.Client
 	configserviceProvider configservice.ConfigService
-	cfg                   fetching.AwsBaseFetcherConfig
 	resourceCh            chan fetching.ResourceInfo
 }
 
@@ -42,6 +41,14 @@ type LoggingResource struct {
 
 type ConfigResource struct {
 	awslib.AwsResource
+}
+
+func NewFetcher(options ...Option) *LoggingFetcher {
+	e := &LoggingFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f LoggingFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {

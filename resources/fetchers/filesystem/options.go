@@ -18,43 +18,38 @@
 package filesystem
 
 import (
+	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/utils/user"
-	"github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 )
 
-type FileSystemFactory struct{}
+type Option func(e *FileSystemFetcher)
 
-func New(options ...FactoryOption) *FileSystemFactory {
-	e := &FileSystemFactory{}
-	for _, opt := range options {
-		opt(e)
+func WithLogger(log *logp.Logger) Option {
+	return func(e *FileSystemFetcher) {
+		e.log = log
 	}
-	return e
 }
 
-func (f *FileSystemFactory) Create(log *logp.Logger, c *config.C, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
-	log.Debug("Starting FileSystemFactory.Create")
-
-	cfg := FileFetcherConfig{}
-	err := c.Unpack(&cfg)
-	if err != nil {
-		return nil, err
+func WithResourceChannel(ch chan fetching.ResourceInfo) Option {
+	return func(e *FileSystemFetcher) {
+		e.resourceCh = ch
 	}
-
-	return f.CreateFrom(log, cfg, ch)
 }
 
-func (f *FileSystemFactory) CreateFrom(log *logp.Logger, cfg FileFetcherConfig, ch chan fetching.ResourceInfo) (fetching.Fetcher, error) {
-	fe := &FileSystemFetcher{
-		log:        log,
-		cfg:        cfg,
-		resourceCh: ch,
-		osUser:     user.NewOSUserUtil(),
+func WithUserProvider(p user.OSUser) Option {
+	return func(e *FileSystemFetcher) {
+		e.osUser = p
 	}
+}
 
-	log.Infof("File-System Fetcher created with the following config:"+
-		"\n Name: %s\nPatterns: %s", cfg.Name, cfg.Patterns)
-	return fe, nil
+func WithFetcherConfig(c *config.Config) Option {
+	return func(e *FileSystemFetcher) {
+		cfg := FileFetcherConfig{}
+		if err := config.UnpackInto(c, fetching.FileSystemType, &cfg); err != nil {
+			panic(err)
+		}
+		e.cfg = cfg
+	}
 }

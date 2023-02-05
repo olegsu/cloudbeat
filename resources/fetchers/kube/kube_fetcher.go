@@ -84,30 +84,43 @@ type requiredResource struct {
 }
 
 type KubeFetcher struct {
-	log        *logp.Logger
-	cfg        KubeApiFetcherConfig
+	log *logp.Logger
+	// TODO: remove
+	// cfg        KubeApiFetcherConfig
 	resourceCh chan fetching.ResourceInfo
 
-	watchers       []kubernetes.Watcher
-	clientProvider func(string, kubernetes.KubeClientOptions) (k8s.Interface, error)
-	watcherLock    *sync.Once
+	watchers []kubernetes.Watcher
+	// TODO: remove
+	// clientProvider func(string, kubernetes.KubeClientOptions) (k8s.Interface, error)
+	client      k8s.Interface
+	watcherLock *sync.Once
 }
 
+// TODO: remove
 type KubeApiFetcherConfig struct {
 	fetching.BaseFetcherConfig
 	Interval   time.Duration `config:"interval"`
 	KubeConfig string        `config:"kubeconfig"`
 }
 
-func (f *KubeFetcher) initWatcher(client k8s.Interface, r requiredResource) error {
-	f.cfg.Interval = time.Duration(time.Duration.Seconds(30)) // todo: hard coded - need to get from config
+func NewFetcher(options ...Option) *KubeFetcher {
+	e := &KubeFetcher{
+		watchers:    []kubernetes.Watcher{},
+		watcherLock: &sync.Once{},
+	}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
 
+func initWatcher(client k8s.Interface, r requiredResource) (kubernetes.Watcher, error) {
 	watcher, err := kubernetes.NewWatcher(client, r.resource, kubernetes.WatchOptions{
-		SyncTimeout: f.cfg.Interval,
+		SyncTimeout: time.Duration(time.Duration.Seconds(30)),
 		Namespace:   r.namespace,
 	}, nil)
 	if err != nil {
-		return fmt.Errorf("could not create watcher: %w", err)
+		return nil, fmt.Errorf("could not create watcher: %w", err)
 	}
 
 	// TODO(yashtewari): it appears that Start never returns in case of certain failures, for example
@@ -118,48 +131,44 @@ func (f *KubeFetcher) initWatcher(client k8s.Interface, r requiredResource) erro
 	// happens due to a context.TODO present in the libbeat dependency. It needs to accept context
 	// from the caller instead.
 	if err := watcher.Start(); err != nil {
-		return fmt.Errorf("could not start watcher: %w", err)
+		return nil, fmt.Errorf("could not start watcher: %w", err)
 	}
 
-	f.watchers = append(f.watchers, watcher)
-
-	return nil
+	return watcher, nil
 }
 
-func (f *KubeFetcher) initWatchers() error {
-	client, err := f.clientProvider(f.cfg.KubeConfig, kubernetes.KubeClientOptions{})
-	if err != nil {
-		return fmt.Errorf("could not get k8s client: %w", err)
-	}
+// TODO: support returning error
+func InitWatchers(log *logp.Logger, client k8s.Interface) []kubernetes.Watcher {
+	log.Info("Kubernetes client initiated")
 
-	f.log.Info("Kubernetes client initiated")
-
-	f.watchers = make([]kubernetes.Watcher, 0)
+	watchers := []kubernetes.Watcher{}
 
 	for _, r := range vanillaClusterResources {
-		err := f.initWatcher(client, r)
+		w, err := initWatcher(client, r)
 		if err != nil {
-			return err
+			log.Errorf("failed to init watcher %v: %v", r.resource, err)
+			return nil
 		}
+		watchers = append(watchers, w)
 	}
 
-	f.log.Info("Kubernetes Watchers initiated")
+	log.Info("Kubernetes Watchers initiated")
 
-	return nil
+	return watchers
 }
 
 func (f *KubeFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	f.log.Debug("Starting KubeFetcher.Fetch")
-
-	var err error
-	f.watcherLock.Do(func() {
-		err = f.initWatchers()
-	})
-	if err != nil {
-		// Reset watcherLock if the watchers could not be initiated.
-		f.watcherLock = &sync.Once{}
-		return fmt.Errorf("could not initate Kubernetes watchers: %w", err)
-	}
+	// TODO: remove
+	// var err error
+	// f.watcherLock.Do(func() {
+	// 	err = f.initWatchers()
+	// })
+	// if err != nil {
+	// 	// Reset watcherLock if the watchers could not be initiated.
+	// 	f.watcherLock = &sync.Once{}
+	// 	return fmt.Errorf("could not initate Kubernetes watchers: %w", err)
+	// }
 
 	getKubeData(f.log, f.watchers, f.resourceCh, cMetadata)
 	return nil

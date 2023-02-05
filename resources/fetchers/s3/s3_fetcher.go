@@ -41,6 +41,14 @@ type S3Resource struct {
 	bucket awslib.AwsResource
 }
 
+func NewFetcher(options ...Option) *S3Fetcher {
+	e := &S3Fetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 func (f *S3Fetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	f.log.Info("Starting S3Fetcher.Fetch")
 	buckets, err := f.s3.DescribeBuckets(ctx)

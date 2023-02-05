@@ -93,6 +93,14 @@ type FileFetcherConfig struct {
 	Patterns []string `config:"patterns"` // Files and directories paths for the fetcher to extract info from
 }
 
+func NewFetcher(options ...Option) *FileSystemFetcher {
+	e := &FileSystemFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
+}
+
 func (f *FileSystemFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
 	f.log.Debug("Starting FileSystemFetcher.Fetch")
 
