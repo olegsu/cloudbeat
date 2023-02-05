@@ -45,9 +45,9 @@ func WithCloudIdentity(i *awslib.Identity) Option {
 	}
 }
 
-func WithEC2Clients(set map[string]ec2.ElasticCompute) Option {
+func WithEC2Clients(set ec2.ElasticCompute) Option {
 	return func(e *NetworkFetcher) {
-		e.ec2Clients = set
+		e.ec2Client = set
 	}
 }
 

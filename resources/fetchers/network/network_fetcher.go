@@ -44,9 +44,7 @@ type NetworkResource struct {
 }
 
 func NewFetcher(options ...Option) *NetworkFetcher {
-	e := &NetworkFetcher{
-		ec2Clients: map[string]ec2.ElasticCompute{},
-	}
+	e := &NetworkFetcher{}
 	for _, opt := range options {
 		opt(e)
 	}
