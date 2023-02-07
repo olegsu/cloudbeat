@@ -22,8 +22,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	s3Client "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
@@ -38,15 +38,17 @@ const (
 	NoEncryptionMessage    = "NoEncryption"
 )
 
-func NewProvider(cfg aws.Config, log *logp.Logger, factory awslib.CrossRegionFactory[Client]) *Provider {
-	f := func(cfg aws.Config) Client {
-		return s3Client.NewFromConfig(cfg)
-	}
-	m := factory.NewMultiRegionClients(ec2.NewFromConfig(cfg), cfg, f, log)
+func NewProvider(cfg aws.Config, log *logp.Logger, clients map[string]Client) *Provider {
+	// TODO: remove
+	// f := func(cfg aws.Config) Client {
+	// 	return s3Client.NewFromConfig(cfg)
+	// }
+	// m := factory.NewMultiRegionClients(ec2.NewFromConfig(cfg), cfg, f, log)
 
 	return &Provider{
-		log:     log,
-		clients: m.GetMultiRegionsClientMap(),
+		log: log,
+		// clients: m.GetMultiRegionsClientMap(),
+		clients: clients,
 	}
 }
 

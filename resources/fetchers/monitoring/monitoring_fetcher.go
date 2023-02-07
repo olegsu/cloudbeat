@@ -52,9 +52,7 @@ type SecurityHubResource struct {
 }
 
 func NewFetcher(options ...Option) *MonitoringFetcher {
-	e := &MonitoringFetcher{
-		securityhubs: map[string]securityhub.Service{},
-	}
+	e := &MonitoringFetcher{}
 	for _, opt := range options {
 		opt(e)
 	}

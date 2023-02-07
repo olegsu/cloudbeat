@@ -56,9 +56,9 @@ func WithCloudIdentity(i *awslib.Identity) Option {
 	}
 }
 
-func WithSecurityhub(set map[string]securityhub.Service) Option {
+func WithSecurityhubProvider(p securityhub.Service) Option {
 	return func(e *MonitoringFetcher) {
-		e.securityhubs = set
+		e.securityhub = p
 	}
 }
 

@@ -19,7 +19,7 @@ package iam
 
 import (
 	"context"
-	"github.com/aws/aws-sdk-go-v2/aws"
+
 	iamsdk "github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
@@ -122,10 +122,12 @@ type PolicyDocument struct {
 	Policy     string `json:"policy,omitempty"`
 }
 
-func NewIAMProvider(log *logp.Logger, cfg aws.Config) *Provider {
-	svc := iamsdk.NewFromConfig(cfg)
+func NewIAMProvider(log *logp.Logger, client Client) *Provider {
+	// TODO: remove
+	// svc := iamsdk.NewFromConfig(cfg)
+
 	return &Provider{
 		log:    log,
-		client: svc,
+		client: client,
 	}
 }

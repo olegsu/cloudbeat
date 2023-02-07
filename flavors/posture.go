@@ -67,6 +67,11 @@ import (
 	"github.com/elastic/cloudbeat/resources/providers"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
+
+	trailsdk "github.com/aws/aws-sdk-go-v2/service/cloudtrail"
+	ec2sdk "github.com/aws/aws-sdk-go-v2/service/ec2"
+	iamsdk "github.com/aws/aws-sdk-go-v2/service/iam"
+	s3sdk "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // posture configuration.
@@ -262,6 +267,15 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 		panic(err)
 	}
 
+	awsEC2Service := ec2sdk.NewFromConfig(*awsConfig)
+	awsIAMService := iamsdk.NewFromConfig(*awsConfig)
+	awsS3MultiRegionService := crossRegionS3Provider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) awslib_s3.Client {
+		return s3sdk.NewFromConfig(cfg)
+	}, log).GetMultiRegionsClientMap()
+	awsTrailMultiRegionService := crossRegionCloudtrailProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) cloudtrail.Client {
+		return trailsdk.NewFromConfig(cfg)
+	}, log).GetMultiRegionsClientMap()
+
 	// TODO: not all the fetchers here
 	// go over the list again
 	// also in case there is a fetcher in yml that is not recognized should we exit?
@@ -312,7 +326,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			iam.WithResourceChannel(ch),
 			iam.WithFetcherConfig(cfg),
 			iam.WithCloudIdentity(identity),
-			iam.WithIAMProvider(awslib_iam.NewIAMProvider(log, *awsConfig)),
+			iam.WithIAMProvider(awslib_iam.NewIAMProvider(log, awsIAMService)),
 		)
 	}
 
@@ -330,7 +344,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			logging.WithLogger(log),
 			logging.WithResourceChannel(ch),
 			logging.WithLoggingProvider(
-				awscis_logging.NewProvider(log, *awsConfig, &crossRegionCloudtrailProvider, &crossRegionS3Provider),
+				awscis_logging.NewProvider(log, *awsConfig, awsTrailMultiRegionService, awsS3MultiRegionService),
 			),
 		)
 	}
@@ -349,7 +363,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 					GetMultiRegionsClientMap(),
 			),
 			monitoring.WithMonitoringProvider(&awscis_monitoring.Provider{
-				Cloudtrail:     cloudtrail.NewProvider(*awsConfig, log, &crossRegionCloudtrailProvider), // TODO: make the same order of params as in cloudwatch
+				Cloudtrail:     cloudtrail.NewProvider(log, awsTrailMultiRegionService), // TODO: make the same order of params as in cloudwatch
 				Cloudwatch:     cloudwatch.NewProvider(log, *awsConfig, &crossRegionCloudwatchProvider),
 				Cloudwatchlogs: logs.NewCloudwatchLogsProvider(log, *awsConfig, &crossRegionCloudwatchlogsProvider),
 				Sns:            sns.NewSNSProvider(log, *awsConfig, &crossRegionSNSProvider),
