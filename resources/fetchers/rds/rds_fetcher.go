@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package fetchers
+package rds
 
 import (
 	"context"
@@ -39,6 +39,14 @@ type RdsFetcherConfig struct {
 
 type RdsResource struct {
 	dbInstance awslib.AwsResource
+}
+
+func NewFetcher(options ...Option) *RdsFetcher {
+	e := &RdsFetcher{}
+	for _, opt := range options {
+		opt(e)
+	}
+	return e
 }
 
 func (f *RdsFetcher) Fetch(ctx context.Context, cMetadata fetching.CycleMetadata) error {
