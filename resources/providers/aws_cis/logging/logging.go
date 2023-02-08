@@ -46,7 +46,7 @@ func NewProvider(
 ) *Provider {
 	return &Provider{
 		log:           log,
-		s3Provider:    s3.NewProvider(cfg, log, s3Clients),
+		s3Provider:    s3.NewProvider(log, s3Clients),
 		trailProvider: cloudtrail.NewProvider(log, trailClients),
 	}
 }

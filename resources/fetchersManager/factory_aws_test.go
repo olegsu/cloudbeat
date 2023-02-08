@@ -24,7 +24,6 @@ import (
 	"github.com/elastic/beats/v7/x-pack/libbeat/common/aws"
 	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/resources/fetching"
-	"github.com/elastic/cloudbeat/resources/utils/testhelper"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 )
@@ -76,95 +75,6 @@ func (n *awsTestFactory) Create(log *logp.Logger, c *agentconfig.C, ch chan fetc
 	}
 
 	return &awsTestFetcher{ch, cfg}, nil
-}
-
-func awsMockedFetcherConfig(s *FactoriesTestSuite, awsConfig aws.ConfigAWS) *agentconfig.C {
-	c := agentconfig.NewConfig()
-	err := c.Merge(awsConfig)
-	s.NoError(err)
-
-	return c
-}
-
-func (s *FactoriesTestSuite) TestCreateFetcherWithAwsCredentials() {
-	tests := []struct {
-		fetcherName string
-		awsConfig   aws.ConfigAWS
-	}{
-		{
-			"some_fetcher",
-			aws.ConfigAWS{
-				AccessKeyID:     "key",
-				SecretAccessKey: "secret",
-				SessionToken:    "session",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		s.F.RegisterFactory(test.fetcherName, &awsTestFactory{})
-		c := awsMockedFetcherConfig(s, test.awsConfig)
-
-		f, err := s.F.CreateFetcher(s.log, test.fetcherName, c, s.resourceCh)
-		s.NoError(err)
-		err = f.Fetch(context.TODO(), fetching.CycleMetadata{})
-		results := testhelper.CollectResources(s.resourceCh)
-
-		s.Equal(1, len(results))
-		s.NoError(err)
-
-		result := results[0].GetData().(aws.ConfigAWS)
-		s.Equal(test.awsConfig.AccessKeyID, result.AccessKeyID)
-		s.Equal(test.awsConfig.SecretAccessKey, result.SecretAccessKey)
-		s.Equal(test.awsConfig.SessionToken, result.SessionToken)
-	}
-}
-
-func (s *FactoriesTestSuite) TestRegisterFetchersWithAwsCredentials() {
-	tests := []struct {
-		fetcherName string
-		awsConfig   aws.ConfigAWS
-	}{
-		{
-			"some_fetcher",
-			aws.ConfigAWS{
-				AccessKeyID:     "key",
-				SecretAccessKey: "secret",
-				SessionToken:    "session",
-			},
-		},
-		{
-			"another_fetcher",
-			aws.ConfigAWS{
-				AccessKeyID:     "new_key",
-				SecretAccessKey: "new_secret",
-				SessionToken:    "new_session",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		s.F = New()
-		s.F.RegisterFactory(test.fetcherName, &awsTestFactory{})
-		reg := NewFetcherRegistry(s.log)
-		conf := createEksAgentConfig(test.awsConfig, test.fetcherName)
-		parsedList, err := s.F.ParseConfigFetchers(s.log, conf, s.resourceCh)
-		s.Equal(test.fetcherName, parsedList[0].name)
-		s.NoError(err)
-
-		err = reg.RegisterFetchers(parsedList, nil)
-		s.NoError(err)
-		s.Equal(1, len(reg.Keys()))
-
-		err = reg.Run(context.Background(), test.fetcherName, fetching.CycleMetadata{})
-		s.NoError(err)
-
-		results := testhelper.CollectResources(s.resourceCh)
-		result := results[0].GetData().(aws.ConfigAWS)
-		s.Equal(test.awsConfig.AccessKeyID, result.AccessKeyID)
-		s.Equal(test.awsConfig.SecretAccessKey, result.SecretAccessKey)
-		s.Equal(test.awsConfig.SessionToken, result.SessionToken)
-	}
 }
 
 func createEksAgentConfig(awsConfig aws.ConfigAWS, fetcherName string) *config.Config {

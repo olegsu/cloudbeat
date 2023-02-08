@@ -20,7 +20,6 @@ package logs
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs/types"
 	"github.com/elastic/elastic-agent-libs/logp"
 )
@@ -29,15 +28,9 @@ type CloudwatchLogs interface {
 	DescribeMetricFilters(ctx context.Context, region *string, logGroup string) ([]types.MetricFilter, error)
 }
 
-func NewCloudwatchLogsProvider(log *logp.Logger, cfg aws.Config, clients map[string]Client) *Provider {
-	// TODO: remove
-	// f := func(cfg aws.Config) Client {
-	// 	return cloudwatchlogs.NewFromConfig(cfg)
-	// }
-	// m := factory.NewMultiRegionClients(ec2.NewFromConfig(cfg), cfg, f, log)
+func NewCloudwatchLogsProvider(log *logp.Logger, clients map[string]Client) *Provider {
 	return &Provider{
-		log: log,
-		// clients: m.GetMultiRegionsClientMap(),
+		log:     log,
 		clients: clients,
 	}
 }

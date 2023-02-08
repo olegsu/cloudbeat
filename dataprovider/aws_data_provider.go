@@ -20,6 +20,7 @@ package dataprovider
 import (
 	"context"
 	"fmt"
+
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/x-pack/libbeat/common/aws"
 	"github.com/elastic/cloudbeat/config"
@@ -55,7 +56,7 @@ func NewAwsDataProvider(log *logp.Logger, cfg *config.Config) (EnvironmentCommon
 	}
 
 	identityClient := awslib.GetIdentityClient(awsConfig)
-	iamProvider := iam.NewIAMProvider(log, awsConfig)
+	iamProvider := iam.NewIAMProvider(log, nil) // TODO: inject iam provider
 
 	return &awsDataProvider{log, identityClient, iamProvider}, nil
 }

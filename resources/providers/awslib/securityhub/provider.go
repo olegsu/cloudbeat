@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 	"github.com/elastic/elastic-agent-libs/logp"
@@ -34,6 +33,7 @@ type (
 	}
 
 	Provider struct {
+<<<<<<< HEAD
 		log       *logp.Logger
 		clients   map[string]Client
 		region    string
@@ -51,6 +51,17 @@ func NewProvider(cfg aws.Config, log *logp.Logger, factory awslib.CrossRegionFac
 		region:    cfg.Region,
 		accountId: accountId,
 		clients:   m.GetMultiRegionsClientMap(),
+=======
+		log     *logp.Logger
+		clients map[string]Client
+	}
+)
+
+func NewProvider(cfg aws.Config, log *logp.Logger, clients map[string]Client) *Provider {
+	return &Provider{
+		log:     log,
+		clients: clients,
+>>>>>>> 54bc8cc (wip)
 	}
 }
 

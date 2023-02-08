@@ -90,11 +90,7 @@ func newTestingCloudbeat(cfg config.Config) (*cloudbeat, error) {
 			monitoring.WithResourceChannel(resourceChan),
 			monitoring.WithFetcherConfig(&cfg),
 			monitoring.WithCloudIdentity(&awslib.Identity{Account: awssdk.String("cloudbeat-testing-aws-account")}),
-			monitoring.WithSecurityhub(
-				map[string]securityhub.Service{
-					awslib.DefaultRegion: &mockSecurityhubProvider,
-				},
-			),
+			monitoring.WithSecurityhubProvider(),
 			monitoring.WithMonitoringProvider(&awscis_monitoring.Provider{
 				Cloudtrail:     cloudtrail.NewProvider(awscfg, log, &crossRegionCloudtrailProvider),
 				Cloudwatch:     cloudwatch.NewProvider(log, awscfg, &crossRegionCloudwatchProvider),

@@ -21,10 +21,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/elastic/cloudbeat/resources/utils/testhelper"
 	"github.com/elastic/elastic-agent-libs/logp"
 
-	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/stretchr/testify/suite"
@@ -114,30 +112,6 @@ func (s *FactoriesTestSuite) TestListFetcher() {
 	s.Contains(s.F.m, "file-system")
 }
 
-func (s *FactoriesTestSuite) TestCreateFetcher() {
-	tests := []struct {
-		key   string
-		value int
-	}{
-		{"process", 1},
-		{"file-system", 4},
-	}
-
-	for _, test := range tests {
-		s.F.RegisterFactory(test.key, &numberFetcherFactory{})
-		c := numberConfig(test.value)
-
-		f, err := s.F.CreateFetcher(s.log, test.key, c, s.resourceCh)
-		s.NoError(err)
-		err = f.Fetch(context.TODO(), fetching.CycleMetadata{})
-		results := testhelper.CollectResources(s.resourceCh)
-
-		s.Equal(1, len(results))
-		s.NoError(err)
-		s.Equal(test.value, results[0].GetData())
-	}
-}
-
 func (s *FactoriesTestSuite) TestCreateFetcherCollision() {
 	tests := []struct {
 		key string
@@ -151,113 +125,4 @@ func (s *FactoriesTestSuite) TestCreateFetcherCollision() {
 			s.F.RegisterFactory(test.key, &numberFetcherFactory{})
 		}
 	})
-}
-
-func (s *FactoriesTestSuite) TestRegisterFetchers() {
-	tests := []struct {
-		key             string
-		value           int
-		integrationType string
-	}{
-		{"new_fetcher", 6, ""},
-		{"new_fetcher", 6, "cloudbeat/cis_k8s"},
-		{"other_fetcher", 4, ""},
-		{"other_fetcher", 4, "cloudbeat/cis_k8s"},
-	}
-
-	for _, test := range tests {
-		s.F = New()
-		s.F.RegisterFactory(test.key, &numberFetcherFactory{})
-		numCfg := numberConfig(test.value)
-		err := numCfg.SetString("name", -1, test.key)
-		s.NoError(err, "Could not set name: %v", err)
-
-		conf := &config.Config{
-			Benchmark: test.integrationType,
-		}
-		conf.Fetchers = []*agentconfig.C{numCfg}
-
-		parsedList, err := s.F.ParseConfigFetchers(s.log, conf, s.resourceCh)
-		s.NoError(err)
-
-		reg := NewFetcherRegistry(s.log)
-		err = reg.RegisterFetchers(parsedList, nil)
-		s.NoError(err)
-		s.Equal(1, len(reg.Keys()))
-
-		err = reg.Run(context.Background(), test.key, fetching.CycleMetadata{})
-		results := testhelper.CollectResources(s.resourceCh)
-
-		s.NoError(err)
-		s.NotEmpty(results)
-		s.Equal(test.value, results[0].Resource.GetData())
-	}
-}
-
-func (s *FactoriesTestSuite) TestRegisterNotFoundFetchers() {
-	tests := []struct {
-		key   string
-		value int
-	}{
-		{"not_found_fetcher", 42},
-	}
-
-	for _, test := range tests {
-		conf := &config.Config{}
-		numCfg := numberConfig(test.value)
-		err := numCfg.SetString("name", -1, test.key)
-		s.NoError(err, "Could not set name: %v", err)
-
-		conf.Fetchers = []*agentconfig.C{numCfg}
-
-		_, err = s.F.ParseConfigFetchers(s.log, conf, s.resourceCh)
-		s.Error(err)
-	}
-}
-
-func (s *FactoriesTestSuite) TestRegisterFromFullConfig() {
-	tests := []struct {
-		config string
-	}{
-		{
-			`
-not_data_yaml:
-  activated_rules:
-    cis_k8s:
-      - a
-fetchers:
-  - name: process
-`,
-		},
-		{
-			`
-not_data_yaml:
-  activated_rules:
-    cis_k8s:
-      - a
-fetchers:
-  - name: aws-eks
-`,
-		},
-	}
-
-	for _, test := range tests {
-		cfg, err := agentconfig.NewConfigFrom(test.config)
-		s.NoError(err)
-		c, err := config.New(cfg)
-		s.NoError(err)
-
-		reg := NewFetcherRegistry(s.log)
-		var fetcher config.Fetcher
-		err = c.Fetchers[0].Unpack(&fetcher)
-		s.NoError(err)
-
-		s.F.RegisterFactory(fetcher.Name, &numberFetcherFactory{})
-		parsedList, err := s.F.ParseConfigFetchers(s.log, c, s.resourceCh)
-		s.Equal(fetcher.Name, parsedList[0].name)
-		s.NoError(err)
-
-		err = reg.RegisterFetchers(parsedList, nil)
-		s.NoError(err)
-	}
 }

@@ -23,9 +23,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	s3Client "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/smithy-go"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
@@ -38,16 +38,9 @@ const (
 	NoEncryptionMessage    = "NoEncryption"
 )
 
-func NewProvider(cfg aws.Config, log *logp.Logger, clients map[string]Client) *Provider {
-	// TODO: remove
-	// f := func(cfg aws.Config) Client {
-	// 	return s3Client.NewFromConfig(cfg)
-	// }
-	// m := factory.NewMultiRegionClients(ec2.NewFromConfig(cfg), cfg, f, log)
-
+func NewProvider(log *logp.Logger, clients map[string]Client) *Provider {
 	return &Provider{
-		log: log,
-		// clients: m.GetMultiRegionsClientMap(),
+		log:     log,
 		clients: clients,
 	}
 }
