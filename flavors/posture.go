@@ -35,6 +35,7 @@ import (
 	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch/logs"
 	awslib_ec2 "github.com/elastic/cloudbeat/resources/providers/awslib/ec2"
 	awslib_iam "github.com/elastic/cloudbeat/resources/providers/awslib/iam"
+	awslib_rds "github.com/elastic/cloudbeat/resources/providers/awslib/rds"
 	awslib_s3 "github.com/elastic/cloudbeat/resources/providers/awslib/s3"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/securityhub"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/sns"
@@ -76,6 +77,7 @@ import (
 	awssdk_configservice "github.com/aws/aws-sdk-go-v2/service/configservice"
 	awssdk_ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awssdk_iam "github.com/aws/aws-sdk-go-v2/service/iam"
+	awssdk_rds "github.com/aws/aws-sdk-go-v2/service/rds"
 	awssdk_s3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	awssdk_securityhub "github.com/aws/aws-sdk-go-v2/service/securityhub"
 	awssdk_sns "github.com/aws/aws-sdk-go-v2/service/sns"
@@ -269,6 +271,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 	crossRegionSNSProvider := awslib.MultiRegionClientFactory[sns.Client]{}
 	crossRegionEC2Provider := awslib.MultiRegionClientFactory[awslib_ec2.Client]{}
 	crossRegionConfigserviceProvider := awslib.MultiRegionClientFactory[configservice.Client]{}
+	crossRegionRDSProvider := awslib.MultiRegionClientFactory[awslib_rds.Client]{}
 
 	list, err := config.GetFetcherNames(cfg) // get all the fetchers from the config file to register only them
 	if err != nil {
@@ -302,6 +305,9 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 		GetMultiRegionsClientMap()
 	awsConfigserviceMultiRegionService := crossRegionConfigserviceProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) configservice.Client {
 		return awssdk_configservice.NewFromConfig(cfg)
+	}, log).GetMultiRegionsClientMap()
+	awsRDSMultiRegionService := crossRegionRDSProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) awslib_rds.Client {
+		return awssdk_rds.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
 
 	// 12/12 fetchers
@@ -429,6 +435,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			rds.WithLogger(log),
 			rds.WithResourceChannel(ch),
 			rds.WithFetcherConfig(cfg),
+			rds.WithRdsProvider(awslib_rds.NewProvider(log, awsRDSMultiRegionService)),
 		)
 	}
 

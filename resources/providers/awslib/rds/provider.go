@@ -20,9 +20,6 @@ package rds
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rdsClient "github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
@@ -30,14 +27,10 @@ import (
 	"github.com/samber/lo"
 )
 
-func NewProvider(log *logp.Logger, cfg aws.Config, factory awslib.CrossRegionFactory[Client]) *Provider {
-	f := func(cfg aws.Config) Client {
-		return rds.NewFromConfig(cfg)
-	}
-	m := factory.NewMultiRegionClients(ec2.NewFromConfig(cfg), cfg, f, log)
+func NewProvider(log *logp.Logger, clients map[string]Client) *Provider {
 	return &Provider{
 		log:     log,
-		clients: m.GetMultiRegionsClientMap(),
+		clients: clients,
 	}
 }
 
