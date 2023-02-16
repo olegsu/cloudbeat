@@ -20,6 +20,7 @@ package logging
 import (
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/providers/aws_cis/logging"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/configservice"
 	"github.com/elastic/elastic-agent-libs/logp"
 )
 
@@ -40,6 +41,12 @@ func WithResourceChannel(ch chan fetching.ResourceInfo) Option {
 // TODO: this is multi client provider
 func WithLoggingProvider(p logging.Client) Option {
 	return func(e *LoggingFetcher) {
-		e.provider = p
+		e.loggingProvider = p
+	}
+}
+
+func WithConfigserviceProvider(p configservice.ConfigService) Option {
+	return func(e *LoggingFetcher) {
+		e.configserviceProvider = p
 	}
 }

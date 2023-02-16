@@ -33,7 +33,6 @@ type (
 	}
 
 	Provider struct {
-<<<<<<< HEAD
 		log       *logp.Logger
 		clients   map[string]Client
 		region    string
@@ -41,27 +40,10 @@ type (
 	}
 )
 
-func NewProvider(cfg aws.Config, log *logp.Logger, factory awslib.CrossRegionFactory[Client], accountId string) *Provider {
-	f := func(cfg aws.Config) Client {
-		return securityhub.NewFromConfig(cfg)
-	}
-	m := factory.NewMultiRegionClients(ec2.NewFromConfig(cfg), cfg, f, log)
-	return &Provider{
-		log:       log,
-		region:    cfg.Region,
-		accountId: accountId,
-		clients:   m.GetMultiRegionsClientMap(),
-=======
-		log     *logp.Logger
-		clients map[string]Client
-	}
-)
-
 func NewProvider(cfg aws.Config, log *logp.Logger, clients map[string]Client) *Provider {
 	return &Provider{
 		log:     log,
 		clients: clients,
->>>>>>> 54bc8cc (wip)
 	}
 }
 

@@ -60,6 +60,7 @@ import (
 	"github.com/elastic/cloudbeat/resources/fetchers/s3"
 	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
+	"github.com/elastic/cloudbeat/resources/providers/awslib/configservice"
 	"github.com/elastic/cloudbeat/transformer"
 	"github.com/elastic/cloudbeat/uniqueness"
 
@@ -72,6 +73,7 @@ import (
 	awssdk_trail "github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	awssdk_cloudwatch "github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	awssdk_cloudwatchlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	awssdk_configservice "github.com/aws/aws-sdk-go-v2/service/configservice"
 	awssdk_ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awssdk_iam "github.com/aws/aws-sdk-go-v2/service/iam"
 	awssdk_s3 "github.com/aws/aws-sdk-go-v2/service/s3"
@@ -266,6 +268,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 	crossRegionCloudwatchlogsProvider := awslib.MultiRegionClientFactory[logs.Client]{}
 	crossRegionSNSProvider := awslib.MultiRegionClientFactory[sns.Client]{}
 	crossRegionEC2Provider := awslib.MultiRegionClientFactory[awslib_ec2.Client]{}
+	crossRegionConfigserviceProvider := awslib.MultiRegionClientFactory[configservice.Client]{}
 
 	list, err := config.GetFetcherNames(cfg) // get all the fetchers from the config file to register only them
 	if err != nil {
@@ -297,11 +300,12 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			return awssdk_ec2.NewFromConfig(cfg)
 		}, log).
 		GetMultiRegionsClientMap()
+	awsConfigserviceMultiRegionService := crossRegionConfigserviceProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) configservice.Client {
+		return awssdk_configservice.NewFromConfig(cfg)
+	}, log).GetMultiRegionsClientMap()
 
-	// TODO: not all the fetchers here
-	// go over the list again
+	// 12/12 fetchers
 	// also in case there is a fetcher in yml that is not recognized should we exit?
-	// add rds fetcher
 	reg := map[string]fetchers.Fetcher{}
 	if _, ok := list[fetching.EcrType]; ok {
 		reg[fetching.EcrType] = ecr.NewFetcher(
@@ -368,6 +372,9 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			logging.WithResourceChannel(ch),
 			logging.WithLoggingProvider(
 				awscis_logging.NewProvider(log, *awsConfig, awsTrailMultiRegionService, awsS3MultiRegionService),
+			),
+			logging.WithConfigserviceProvider(
+				configservice.NewProvider(log, awsConfigserviceMultiRegionService, *identity.Account),
 			),
 		)
 	}
