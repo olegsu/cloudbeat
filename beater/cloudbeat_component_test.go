@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	awssdk "github.com/aws/aws-sdk-go-v2/aws"
+	awssdk_s3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/libbeat/processors"
 	beater_testing "github.com/elastic/cloudbeat/beater/testing"
@@ -30,16 +30,11 @@ import (
 	"github.com/elastic/cloudbeat/dataprovider"
 	"github.com/elastic/cloudbeat/evaluator"
 	"github.com/elastic/cloudbeat/resources/fetchers"
-	"github.com/elastic/cloudbeat/resources/fetchers/monitoring"
+	"github.com/elastic/cloudbeat/resources/fetchers/s3"
 	"github.com/elastic/cloudbeat/resources/fetchersManager"
 	"github.com/elastic/cloudbeat/resources/fetching"
-	awscis_monitoring "github.com/elastic/cloudbeat/resources/providers/aws_cis/monitoring"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudtrail"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/cloudwatch/logs"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/securityhub"
-	"github.com/elastic/cloudbeat/resources/providers/awslib/sns"
+	awslib_s3 "github.com/elastic/cloudbeat/resources/providers/awslib/s3"
 	"github.com/elastic/cloudbeat/transformer"
 	"github.com/elastic/cloudbeat/uniqueness"
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
@@ -54,7 +49,7 @@ func Test_Cloudbeat(t *testing.T) {
 		BundlePath: "/Users/olegsuharevich/workspace/elastic/cloudbeat/bundle.tar.gz",
 		Benchmark:  config.CIS_AWS,
 		Fetchers: []*agentconfig.C{
-			agentconfig.MustNewConfigFrom(mapstr.M{"name": "aws-monitoring"}),
+			agentconfig.MustNewConfigFrom(mapstr.M{"name": "aws-s3"}),
 		},
 		Processors: processors.PluginConfig{},
 	}
@@ -75,29 +70,18 @@ func newTestingCloudbeat(cfg config.Config) (*cloudbeat, error) {
 	leader := uniqueness.MockManager{}
 	leader.EXPECT().Run(mock.Anything).Return(nil)
 
-	crossRegionCloudtrailProvider := awslib.MultiRegionClientFactory[cloudtrail.Client]{}
-	crossRegionCloudwatchProvider := awslib.MultiRegionClientFactory[cloudwatch.Client]{}
-	crossRegionCloudwatchlogsProvider := awslib.MultiRegionClientFactory[logs.Client]{}
-	crossRegionSNSProvider := awslib.MultiRegionClientFactory[sns.Client]{}
+	s3Mock := &awslib_s3.MockClient{}
 
-	awscfg := awssdk.Config{}
-
-	mockSecurityhubProvider := securityhub.MockService{}
+	s3Mock.EXPECT().ListBuckets(mock.Anything, &awssdk_s3.ListBucketsInput{}).Return(nil, nil)
 
 	reg, err := initRegistry(log, &cfg, resourceChan, &leader, map[string]fetchers.Fetcher{
-		fetching.MonitoringType: monitoring.NewFetcher(
-			monitoring.WithLogger(log),
-			monitoring.WithResourceChannel(resourceChan),
-			monitoring.WithFetcherConfig(&cfg),
-			monitoring.WithCloudIdentity(&awslib.Identity{Account: awssdk.String("cloudbeat-testing-aws-account")}),
-			monitoring.WithSecurityhubProvider(),
-			monitoring.WithMonitoringProvider(&awscis_monitoring.Provider{
-				Cloudtrail:     cloudtrail.NewProvider(awscfg, log, &crossRegionCloudtrailProvider),
-				Cloudwatch:     cloudwatch.NewProvider(log, awscfg, &crossRegionCloudwatchProvider),
-				Cloudwatchlogs: logs.NewCloudwatchLogsProvider(log, awscfg, &crossRegionCloudwatchlogsProvider),
-				Sns:            sns.NewSNSProvider(log, awscfg, &crossRegionSNSProvider),
-				Log:            log,
-			}),
+		fetching.S3Type: s3.NewFetcher(
+			s3.WithLogger(log),
+			s3.WithFetcherConfig(&cfg),
+			s3.WithResourceChannel(resourceChan),
+			s3.WithS3Client(awslib_s3.NewProvider(log, map[string]awslib_s3.Client{
+				awslib.DefaultRegion: s3Mock,
+			})),
 		),
 	})
 	if err != nil {
