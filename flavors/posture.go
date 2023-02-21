@@ -71,6 +71,7 @@ import (
 	agentconfig "github.com/elastic/elastic-agent-libs/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 
+	awssdk_imds "github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	awssdk_trail "github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	awssdk_cloudwatch "github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	awssdk_cloudwatchlogs "github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -111,7 +112,7 @@ func NewPosture(_ *beat.Beat, cfg *agentconfig.C) (*posture, error) {
 
 	le := uniqueness.NewLeaderElector(log, c, &providers.KubernetesProvider{})
 
-	fetchers := initFetchers(log, c, resourceCh)
+	fetchers := initFetchers(ctx, log, c, resourceCh)
 	fetchersRegistry, err := initRegistry(log, c, resourceCh, le, fetchers)
 	if err != nil {
 		cancel()
@@ -135,7 +136,12 @@ func NewPosture(_ *beat.Beat, cfg *agentconfig.C) (*posture, error) {
 	// namespace will be passed as param from fleet on https://github.com/elastic/security-team/issues/2383 and it's user configurable
 	resultsIndex := config.Datastream("", config.ResultsDatastreamIndexPrefix)
 
-	commonDataProvider := dataprovider.NewCommonDataProvider(log, c)
+	dp, err := getEnvironmentCommonDataProvider(log, c)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	commonDataProvider := dataprovider.NewCommonDataProvider(log, c, dp)
 	commonData, err := commonDataProvider.FetchCommonData(ctx)
 	if err != nil {
 		log.Errorf("could not get common data from common data providers. Error: %v", err)
@@ -239,7 +245,7 @@ func initRegistry(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 	return registry, nil
 }
 
-func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo) map[string]fetchers.Fetcher {
+func initFetchers(ctx context.Context, log *logp.Logger, cfg *config.Config, ch chan fetching.ResourceInfo) map[string]fetchers.Fetcher {
 	k8sProvider := providers.KubernetesProvider{}
 	// TODO: load kubeconfig
 	k8sClient, err := k8sProvider.GetClient(log, "", kubernetes.KubeClientOptions{})
@@ -247,17 +253,16 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 		panic(err)
 	}
 
-	awsConfigProvider := awslib.ConfigProvider{MetadataProvider: awslib.Ec2MetadataProvider{}}
-	awsConfig, err := awsConfigProvider.InitializeAWSConfig(context.Background(), cfg.CloudConfig.AwsCred)
-	if awsConfig.Region == "" {
-		// TODO: do we really need this?
-		awsConfig.Region = awslib.DefaultRegion
-	}
+	awsConfig, err := awslib.InitializeAWSConfig(ctx, cfg.CloudConfig.AwsCred)
 	if err != nil {
 		panic(err)
 	}
+	imds := awssdk_imds.NewFromConfig(awsConfig)
+	awslib.GetCurrentRegion(ctx, log, awslib.Ec2MetadataProvider{
+		IMDS: imds,
+	})
 
-	identityProvider := awslib.GetIdentityClient(*awsConfig)
+	identityProvider := awslib.GetIdentityClient(awsConfig)
 	identity, err := identityProvider.GetIdentity(context.Background())
 	if err != nil {
 		panic(err)
@@ -278,35 +283,35 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 		panic(err)
 	}
 
-	awsEC2Service := awssdk_ec2.NewFromConfig(*awsConfig)
-	awsIAMService := awssdk_iam.NewFromConfig(*awsConfig)
-	awsS3MultiRegionService := crossRegionS3Provider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) awslib_s3.Client {
+	awsEC2Service := awssdk_ec2.NewFromConfig(awsConfig)
+	awsIAMService := awssdk_iam.NewFromConfig(awsConfig)
+	awsS3MultiRegionService := crossRegionS3Provider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) awslib_s3.Client {
 		return awssdk_s3.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
-	awsTrailMultiRegionService := crossRegionCloudtrailProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) cloudtrail.Client {
+	awsTrailMultiRegionService := crossRegionCloudtrailProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) cloudtrail.Client {
 		return awssdk_trail.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
-	awsSecurityhubMultiRegionService := crossRegionSecurityhubProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) securityhub.Client {
+	awsSecurityhubMultiRegionService := crossRegionSecurityhubProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) securityhub.Client {
 		return awssdk_securityhub.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
-	awsCloudwatchMultiRegionService := crossRegionCloudwatchProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) cloudwatch.Client {
+	awsCloudwatchMultiRegionService := crossRegionCloudwatchProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) cloudwatch.Client {
 		return awssdk_cloudwatch.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
-	awsCloudwatchlogsMultiRegionService := crossRegionCloudwatchlogsProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) logs.Client {
+	awsCloudwatchlogsMultiRegionService := crossRegionCloudwatchlogsProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) logs.Client {
 		return awssdk_cloudwatchlogs.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
-	awsSNSMultiRegionService := crossRegionSNSProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) sns.Client {
+	awsSNSMultiRegionService := crossRegionSNSProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) sns.Client {
 		return awssdk_sns.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
 	awsEC2MultiRegionService := crossRegionEC2Provider.
-		NewMultiRegionClients(ec2.NewFromConfig(*awsConfig), *awsConfig, func(cfg awssdk.Config) awslib_ec2.Client {
+		NewMultiRegionClients(ec2.NewFromConfig(awsConfig), awsConfig, func(cfg awssdk.Config) awslib_ec2.Client {
 			return awssdk_ec2.NewFromConfig(cfg)
 		}, log).
 		GetMultiRegionsClientMap()
-	awsConfigserviceMultiRegionService := crossRegionConfigserviceProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) configservice.Client {
+	awsConfigserviceMultiRegionService := crossRegionConfigserviceProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) configservice.Client {
 		return awssdk_configservice.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
-	awsRDSMultiRegionService := crossRegionRDSProvider.NewMultiRegionClients(awsEC2Service, *awsConfig, func(cfg awssdk.Config) awslib_rds.Client {
+	awsRDSMultiRegionService := crossRegionRDSProvider.NewMultiRegionClients(awsEC2Service, awsConfig, func(cfg awssdk.Config) awslib_rds.Client {
 		return awssdk_rds.NewFromConfig(cfg)
 	}, log).GetMultiRegionsClientMap()
 
@@ -329,7 +334,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			eks.WithLogger(log),
 			eks.WithResourceChannel(ch),
 			eks.WithFetcherConfig(cfg),
-			eks.WithEKSProvider(awslib.NewEksProvider(*awsConfig)),
+			eks.WithEKSProvider(awslib.NewEksProvider(awsConfig)),
 		)
 	}
 
@@ -377,7 +382,7 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			logging.WithLogger(log),
 			logging.WithResourceChannel(ch),
 			logging.WithLoggingProvider(
-				awscis_logging.NewProvider(log, *awsConfig, awsTrailMultiRegionService, awsS3MultiRegionService),
+				awscis_logging.NewProvider(log, awsConfig, awsTrailMultiRegionService, awsS3MultiRegionService),
 			),
 			logging.WithConfigserviceProvider(
 				configservice.NewProvider(log, awsConfigserviceMultiRegionService, *identity.Account),
@@ -391,10 +396,10 @@ func initFetchers(log *logp.Logger, cfg *config.Config, ch chan fetching.Resourc
 			monitoring.WithResourceChannel(ch),
 			monitoring.WithFetcherConfig(cfg),
 			monitoring.WithCloudIdentity(identity),
-			monitoring.WithSecurityhubProvider(securityhub.NewProvider(*awsConfig, log, awsSecurityhubMultiRegionService)),
+			monitoring.WithSecurityhubProvider(securityhub.NewProvider(awsConfig, log, awsSecurityhubMultiRegionService)),
 			monitoring.WithMonitoringProvider(&awscis_monitoring.Provider{
 				Cloudtrail:     cloudtrail.NewProvider(log, awsTrailMultiRegionService), // TODO: make the same order of params as in cloudwatch
-				Cloudwatch:     cloudwatch.NewProvider(log, *awsConfig, awsCloudwatchMultiRegionService),
+				Cloudwatch:     cloudwatch.NewProvider(log, awsConfig, awsCloudwatchMultiRegionService),
 				Cloudwatchlogs: logs.NewCloudwatchLogsProvider(log, awsCloudwatchlogsMultiRegionService),
 				Sns:            sns.NewSNSProvider(log, awsSNSMultiRegionService),
 				Log:            log,
@@ -460,4 +465,15 @@ func (bt *posture) Stop() {
 // configureProcessors configure processors to be used by the beat
 func (bt *posture) configureProcessors(processorsList processors.PluginConfig) (procs *processors.Processors, err error) {
 	return processors.New(processorsList)
+}
+
+func getEnvironmentCommonDataProvider(log *logp.Logger, cfg *config.Config) (dataprovider.EnvironmentCommonDataProvider, error) {
+	switch cfg.Benchmark {
+	case config.CIS_K8S, config.CIS_EKS:
+		return dataprovider.NewK8sDataProvider(log, cfg)
+	case config.CIS_AWS:
+		return dataprovider.NewAwsDataProvider(log, cfg)
+	default:
+		return nil, nil
+	}
 }

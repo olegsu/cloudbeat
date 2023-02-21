@@ -23,6 +23,7 @@ import (
 
 	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
+
 	"github.com/elastic/elastic-agent-libs/logp"
 	k8s "k8s.io/client-go/kubernetes"
 )
@@ -46,16 +47,11 @@ func (provider ClusterNameProvider) GetClusterName(ctx context.Context, cfg *con
 		return provider.KubernetesClusterNameProvider.GetClusterName(cfg, provider.KubeClient)
 	case config.CIS_EKS:
 		log.Debugf("Trying to identify EKS cluster name")
-		awsConfig, err := provider.AwsConfigProvider.InitializeAWSConfig(ctx, cfg.CloudConfig.AwsCred)
-		if err != nil {
-			return "", fmt.Errorf("failed to initialize aws configuration for identifying the cluster name: %v", err)
-		}
-		metadata, err := provider.EKSMetadataProvider.GetMetadata(ctx, *awsConfig)
+		metadata, err := provider.EKSMetadataProvider.GetMetadata(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to get the ec2 metadata required for identifying the cluster name: %v", err)
 		}
-		instanceId := metadata.InstanceID
-		return provider.EKSClusterNameProvider.GetClusterName(ctx, *awsConfig, instanceId)
+		return provider.EKSClusterNameProvider.GetClusterName(ctx, metadata.InstanceID)
 	case config.CIS_AWS:
 		return "", nil
 	default:

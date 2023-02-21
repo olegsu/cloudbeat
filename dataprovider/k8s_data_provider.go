@@ -55,7 +55,7 @@ type commonK8sData struct {
 	clusterName   string
 }
 
-func NewK8sDataProvider(log *logp.Logger, cfg *config.Config) (EnvironmentCommonDataProvider, error) {
+func NewK8sDataProvider(log *logp.Logger, cfg *config.Config, ec2InstanceDescriber awslib.InstanceDescriber, autoscalingDescriber awslib.AutoscalingDescriber) (EnvironmentCommonDataProvider, error) {
 	kubeClient, err := providers.KubernetesProvider{}.GetClient(log, cfg.KubeConfig, kubernetes.KubeClientOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("could not create Kubernetes client to provide common data: %v", err)
@@ -64,11 +64,14 @@ func NewK8sDataProvider(log *logp.Logger, cfg *config.Config) (EnvironmentCommon
 	clusterNameProvider := providers.ClusterNameProvider{
 		KubernetesClusterNameProvider: providers.KubernetesClusterNameProvider{},
 		EKSMetadataProvider:           awslib.Ec2MetadataProvider{},
-		EKSClusterNameProvider:        awslib.EKSClusterNameProvider{},
-		KubeClient:                    kubeClient,
-		AwsConfigProvider: awslib.ConfigProvider{
-			MetadataProvider: awslib.Ec2MetadataProvider{},
+		EKSClusterNameProvider: awslib.EKSClusterNameProvider{
+			InstanceDescriber:    ec2InstanceDescriber,
+			AutoscalingDescriber: autoscalingDescriber,
 		},
+		KubeClient: kubeClient,
+		// AwsConfigProvider: awslib.ConfigProvider{
+		// MetadataProvider: awslib.Ec2MetadataProvider{},
+		// },
 	}
 
 	return k8sDataProvider{

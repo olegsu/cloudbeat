@@ -23,7 +23,6 @@ import (
 
 	"github.com/elastic/beats/v7/libbeat/beat"
 	"github.com/elastic/beats/v7/x-pack/libbeat/common/aws"
-	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/cloudbeat/resources/fetching"
 	"github.com/elastic/cloudbeat/resources/providers/awslib"
 	"github.com/elastic/cloudbeat/resources/providers/awslib/iam"
@@ -49,13 +48,8 @@ type awsDataProvider struct {
 	iamProvider      iam.AccessManagement
 }
 
-func NewAwsDataProvider(log *logp.Logger, cfg *config.Config) (EnvironmentCommonDataProvider, error) {
-	awsConfig, err := aws.InitializeAWSConfig(cfg.CloudConfig.AwsCred)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize AWS credentials: %w", err)
-	}
-
-	identityClient := awslib.GetIdentityClient(awsConfig)
+func NewAwsDataProvider(log *logp.Logger, cfg aws.Config) (EnvironmentCommonDataProvider, error) {
+	identityClient := awslib.GetIdentityClient(cfg)
 	iamProvider := iam.NewIAMProvider(log, nil) // TODO: inject iam provider
 
 	return &awsDataProvider{log, identityClient, iamProvider}, nil

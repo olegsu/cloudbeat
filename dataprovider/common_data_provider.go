@@ -19,39 +19,25 @@ package dataprovider
 
 import (
 	"context"
-	"fmt"
+
 	"github.com/elastic/cloudbeat/config"
 	"github.com/elastic/elastic-agent-libs/logp"
 )
 
 type commonDataProvider struct {
-	log                 *logp.Logger
-	cfg                 *config.Config
-	k8sDataProviderInit EnvironmentDataProviderInit
-	awsDataProviderInit EnvironmentDataProviderInit
+	log          *logp.Logger
+	cfg          *config.Config
+	dataProvider EnvironmentCommonDataProvider
 }
 
-func NewCommonDataProvider(log *logp.Logger, cfg *config.Config) CommonDataProvider {
-	return commonDataProvider{log, cfg, NewK8sDataProvider, NewAwsDataProvider}
+func NewCommonDataProvider(log *logp.Logger, cfg *config.Config, provider EnvironmentCommonDataProvider) commonDataProvider {
+	return commonDataProvider{
+		log:          log,
+		cfg:          cfg,
+		dataProvider: provider,
+	}
 }
 
 func (c commonDataProvider) FetchCommonData(ctx context.Context) (CommonData, error) {
-	var dataProviderInit EnvironmentDataProviderInit
-	switch c.cfg.Benchmark {
-	case "cis_eks", "cis_k8s":
-		dataProviderInit = c.k8sDataProviderInit
-
-	case "cis_aws":
-		dataProviderInit = c.awsDataProviderInit
-
-	default:
-		return nil, fmt.Errorf("could not get common data provider for benchmark %s", c.cfg.Benchmark)
-	}
-
-	dataProvider, err := dataProviderInit(c.log, c.cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	return dataProvider.FetchData(ctx)
+	return c.dataProvider.FetchData(ctx)
 }

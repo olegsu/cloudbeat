@@ -20,14 +20,24 @@ package awslib
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"regexp"
+
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"k8s.io/klog/v2"
-	"regexp"
 )
 
 type EKSClusterNameProvider struct {
+	InstanceDescriber    InstanceDescriber
+	AutoscalingDescriber AutoscalingDescriber
+}
+
+type InstanceDescriber interface {
+	DescribeInstances(ctx context.Context, params *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error)
+}
+
+type AutoscalingDescriber interface {
+	DescribeAutoScalingGroups(ctx context.Context, params *autoscaling.DescribeAutoScalingGroupsInput, optFns ...func(*autoscaling.Options)) (*autoscaling.DescribeAutoScalingGroupsOutput, error)
 }
 
 const (
@@ -37,29 +47,27 @@ const (
 	numberOfIterationsInEachAutoScalingGroup = 100
 )
 
-var (
-	asgCompiledRegex = regexp.MustCompile(asgPattern)
-)
+var asgCompiledRegex = regexp.MustCompile(asgPattern)
 
 type ClusterNameProvider interface {
-	GetClusterName(ctx context.Context, cfg aws.Config, instanceId string) (string, error)
+	GetClusterName(ctx context.Context, instance string) (string, error)
 }
 
-func (provider EKSClusterNameProvider) GetClusterName(ctx context.Context, cfg aws.Config, instanceId string) (string, error) {
+func (provider EKSClusterNameProvider) GetClusterName(ctx context.Context, instanceId string) (string, error) {
 	// With EKS, there is no data source that can guarantee to return the cluster name.
 	// Therefore, we need to try multiple ways to find the cluster name.
 	// First, try to extract the cluster name from the instance tags.
 	// This is the most reliable way to find the cluster name.
 	// However, this method will work only on new EKS clusters.
 	// Therefore, if the tag was not found we will try to extract the cluster name from the autoscaling group.
-	clusterName, err := provider.getClusterNameFromInstanceTags(ctx, cfg, instanceId)
+	clusterName, err := provider.getClusterNameFromInstanceTags(ctx, instanceId)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster name from the instance tags: %v", err)
 	}
 	if clusterName != "" {
 		return clusterName, nil
 	}
-	clusterName, err = provider.getClusterNameFromAutoscalingGroup(ctx, cfg, instanceId)
+	clusterName, err = provider.getClusterNameFromAutoscalingGroup(ctx, instanceId)
 	if err != nil {
 		return "", fmt.Errorf("failed to get cluster name from the Auto-scaling group: %v", err)
 	}
@@ -67,14 +75,12 @@ func (provider EKSClusterNameProvider) GetClusterName(ctx context.Context, cfg a
 	return clusterName, nil
 }
 
-func (provider EKSClusterNameProvider) getClusterNameFromInstanceTags(ctx context.Context, cfg aws.Config, instanceId string) (string, error) {
+func (provider EKSClusterNameProvider) getClusterNameFromInstanceTags(ctx context.Context, instanceId string) (string, error) {
 	input := &ec2.DescribeInstancesInput{
 		InstanceIds: []string{instanceId},
 	}
-	svc := ec2.NewFromConfig(cfg)
-
 	for {
-		r, err := svc.DescribeInstances(ctx, input)
+		r, err := provider.InstanceDescriber.DescribeInstances(ctx, input)
 		if err != nil {
 			return "", fmt.Errorf("failed to describe instance required for cluster name detection: %v", err)
 		}
@@ -100,12 +106,11 @@ func (provider EKSClusterNameProvider) getClusterNameFromInstanceTags(ctx contex
 	return "", nil
 }
 
-func (provider EKSClusterNameProvider) getClusterNameFromAutoscalingGroup(ctx context.Context, cfg aws.Config, instanceId string) (string, error) {
-	svc := autoscaling.NewFromConfig(cfg)
+func (provider EKSClusterNameProvider) getClusterNameFromAutoscalingGroup(ctx context.Context, instanceId string) (string, error) {
 	input := &autoscaling.DescribeAutoScalingGroupsInput{}
 
 	for {
-		r, err := svc.DescribeAutoScalingGroups(ctx, input)
+		r, err := provider.AutoscalingDescriber.DescribeAutoScalingGroups(ctx, input)
 		if err != nil {
 			klog.Errorf("ec2 describe-autoscaling-group: %v", err)
 			return "", err
