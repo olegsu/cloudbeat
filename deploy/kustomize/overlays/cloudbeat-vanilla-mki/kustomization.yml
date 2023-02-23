@@ -1,0 +1,26 @@
+# $COMMUNITY/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kube-system
+
+resources:
+  - ../cloudbeat-vanilla-nocert
+images:
+  - name: cloudbeat:latest
+    newName: public.ecr.aws/z7e1r9l0/cloudbeat
+    newTag: 4a3cb87753b0
+patches:
+  - path: ./patches/remove_inline_password.yaml
+    target:
+      kind: DaemonSet
+  - path: ./patches/update.yaml
+    target:
+      kind: DaemonSet
+secretGenerator:
+  - name: elastic-cloud
+    options:
+      annotations:
+        avp.kubernetes.io/path: secret/data/elastic/cloud
+    behavior: create
+    literals:
+      - password=<password>

@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cloudbeat
+  namespace: kube-system
+  labels:
+    k8s-app: cloudbeat
+spec:
+  template:
+    spec:
+      containers:
+        - name: cloudbeat
+          env:
+            - name: ES_HOST
+              value: "https://be3c6bb508db4c1caf6c03224d684a29.us-west2.gcp.elastic-cloud.com:443"
+            - name: KIBANA_HOST
+              value: "https://kibana:5601"
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: elastic-cloud
